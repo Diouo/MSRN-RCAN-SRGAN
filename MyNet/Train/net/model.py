@@ -3,21 +3,23 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def swish(x):
-    return x * F.sigmoid(x)
+def normal_init(m, mean, std):
+    if isinstance(m, nn.ConvTranspose2d) or isinstance(m, nn.Conv2d):
+        m.weight.data.normal_(mean, std)
+        m.bias.data.zero_()
 
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, kernel, out_channels, stride):
         super(ResidualBlock, self).__init__()
-
+        self.prelu = nn.PReLU()
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=kernel, stride=stride, padding=kernel // 2)
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=kernel, stride=stride, padding=kernel // 2)
         self.bn2 = nn.BatchNorm2d(out_channels)
 
     def forward(self, x):
-        y = swish(self.bn1(self.conv1(x)))
+        y = self.prelu(self.bn1(self.conv1(x)))
         return self.bn2(self.conv2(y)) + x
 
 
@@ -25,19 +27,21 @@ class UpsampleBlock(nn.Module):
     # Implements resize-convolution
     def __init__(self, in_channels):
         super(UpsampleBlock, self).__init__()
+        self.prelu = nn.PReLU()
         self.conv = nn.Conv2d(in_channels, in_channels * 4, kernel_size=3, stride=1, padding=1)
         self.shuffler = nn.PixelShuffle(2)
 
     def forward(self, x):
-        return swish(self.shuffler(self.conv(x)))
+        return self.prelu(self.shuffler(self.conv(x)))
 
 
 class Generator(nn.Module):
-    def __init__(self, n_residual_blocks, upsample_factor, num_channel=1, base_filter=64):
+    def __init__(self, n_residual_blocks, upsample_factor, num_channel=3, base_filter=64):
         super(Generator, self).__init__()
         self.n_residual_blocks = n_residual_blocks
         self.upsample_factor = upsample_factor
 
+        self.prelu = nn.PReLU()
         self.conv1 = nn.Conv2d(num_channel, base_filter, kernel_size=9, stride=1, padding=4)
 
         for i in range(self.n_residual_blocks):
@@ -52,7 +56,7 @@ class Generator(nn.Module):
         self.conv3 = nn.Conv2d(base_filter, num_channel, kernel_size=9, stride=1, padding=4)
 
     def forward(self, x):
-        x = swish(self.conv1(x))
+        x = self.prelu(self.conv1(x))
 
         y = x.clone()
         for i in range(self.n_residual_blocks):
@@ -68,11 +72,12 @@ class Generator(nn.Module):
     def weight_init(self, mean=0.0, std=0.02):
         for m in self._modules:
             normal_init(self._modules[m], mean, std)
-
+    
 
 class Discriminator(nn.Module):
-    def __init__(self, num_channel=1, base_filter=64):
+    def __init__(self, num_channel=3, base_filter=64):
         super(Discriminator, self).__init__()
+        self.leakyrelu = nn.LeakyReLU(negative_slope=0.2, inplace=False)
         self.conv1 = nn.Conv2d(num_channel, base_filter, kernel_size=3, stride=1, padding=1)
 
         self.conv2 = nn.Conv2d(base_filter, base_filter, kernel_size=3, stride=2, padding=1)
@@ -91,28 +96,33 @@ class Discriminator(nn.Module):
         self.bn8 = nn.BatchNorm2d(base_filter * 8)
 
         # Replaced original paper FC layers with FCN
-        self.conv9 = nn.Conv2d(base_filter * 8, num_channel, kernel_size=1, stride=1, padding=0)
+        # self.conv9 = nn.Conv2d(base_filter * 8, num_channel, kernel_size=1, stride=1, padding=0)
+
+        self.avepool = nn.AdaptiveAvgPool2d(1)
+        self.flatten = nn.Flatten()
+        self.linear1 = nn.Linear(in_features = 512, out_features = 1024)
+        self.linear2 = nn.Linear(in_features = 1024, out_features = 1)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = swish(self.conv1(x))
+        x = self.leakyrelu(self.conv1(x))
 
-        x = swish(self.bn2(self.conv2(x)))
-        x = swish(self.bn3(self.conv3(x)))
-        x = swish(self.bn4(self.conv4(x)))
-        x = swish(self.bn5(self.conv5(x)))
-        x = swish(self.bn6(self.conv6(x)))
-        x = swish(self.bn7(self.conv7(x)))
-        x = swish(self.bn8(self.conv8(x)))
+        x = self.leakyrelu(self.bn2(self.conv2(x)))
+        x = self.leakyrelu(self.bn3(self.conv3(x)))
+        x = self.leakyrelu(self.bn4(self.conv4(x)))
+        x = self.leakyrelu(self.bn5(self.conv5(x)))
+        x = self.leakyrelu(self.bn6(self.conv6(x)))
+        x = self.leakyrelu(self.bn7(self.conv7(x)))
+        x = self.leakyrelu(self.bn8(self.conv8(x)))
 
-        x = self.conv9(x)
-        return torch.sigmoid(F.avg_pool2d(x, x.size()[2:])).view(x.size()[0], -1)
+        x = self.avepool(x)
+        x = self.flatten(x)
+        x = self.leakyrelu(self.linear1(x))
+        x = self.sigmoid(self.linear2(x))
+        
+        return x
 
     def weight_init(self, mean=0.0, std=0.02):
         for m in self._modules:
             normal_init(self._modules[m], mean, std)
 
-
-def normal_init(m, mean, std):
-    if isinstance(m, nn.ConvTranspose2d) or isinstance(m, nn.Conv2d):
-        m.weight.data.normal_(mean, std)
-        m.bias.data.zero_()
