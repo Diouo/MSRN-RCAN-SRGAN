@@ -96,8 +96,6 @@ class Discriminator(nn.Module):
         self.bn8 = nn.BatchNorm2d(base_filter * 8)
 
         # Replaced original paper FC layers with FCN
-        # self.conv9 = nn.Conv2d(base_filter * 8, num_channel, kernel_size=1, stride=1, padding=0)
-
         self.avepool = nn.AdaptiveAvgPool2d(1)
         self.flatten = nn.Flatten()
         self.linear1 = nn.Linear(in_features = 512, out_features = 1024)

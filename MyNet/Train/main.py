@@ -1,8 +1,8 @@
 import torch
+import os
 import argparse
 import time
 import datetime
-import os
 from torch.utils.data import DataLoader
 
 from net.solver import MyNetTrainer
@@ -12,6 +12,7 @@ from dataset import get_training_set, get_test_set
 # ===========================================================
 # Training settings
 # ===========================================================
+os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
 parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 
 # dataset settings

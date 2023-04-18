@@ -19,7 +19,6 @@ class MyNetTrainer(object):
         self.netD = None
         self.lr = config.lr
         self.nEpochs = config.nEpochs
-        self.epoch_pretrain = 10
         self.criterionG = None
         self.criterionD = None
         self.optimizerG = None
@@ -33,9 +32,11 @@ class MyNetTrainer(object):
         self.testing_loader = testing_loader
 
     def build_model(self):
-        self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to(self.device)
-        self.netD = Discriminator(base_filter=64, num_channel=3).to(self.device)
-        self.feature_extractor = vgg19(weights='IMAGENET1K_V1')
+        self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to('cuda:0')
+        print(next(self.netG.parameters()).device)
+        self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:1')
+        print(next(self.netD.parameters()).device)
+        self.feature_extractor = vgg19(weights='IMAGENET1K_V1').to('cuda:1')
         self.netG.weight_init(mean=0.0, std=0.2)
         self.netD.weight_init(mean=0.0, std=0.2)
         self.criterionG = nn.MSELoss()
@@ -72,18 +73,17 @@ class MyNetTrainer(object):
         d_train_loss = 0
         for batch_num, (data, target) in enumerate(self.training_loader):
             # setup noise
-            real_label = torch.ones(data.size(0), 1).to(self.device)
-            fake_label = torch.zeros(data.size(0), 1).to(self.device)
-            data, target = data.to(self.device), target.to(self.device) # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
-
+            real_label = torch.ones(data.size(0), 1)
+            fake_label = torch.zeros(data.size(0), 1)
+            # data, target = data.to(self.device), target.to(self.device) # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
 
             # Train Discriminator
             self.optimizerD.zero_grad()
-            d_real = self.netD(target) # 真实样本的判别概率
-            d_real_loss = self.criterionD(d_real, real_label) # 真实样本的损失
+            d_real = self.netD(target.to('cuda:1')) # 真实样本的判别概率
+            d_real_loss = self.criterionD(d_real, real_label.to('cuda:1')) # 真实样本的损失
 
-            d_fake = self.netD(self.netG(data)) # 虚假样本的判别概率
-            d_fake_loss = self.criterionD(d_fake, fake_label) # 虚假样本的损失
+            d_fake = self.netD(self.netG(data.to('cuda:0')).to('cuda:1')) # 虚假样本的判别概率
+            d_fake_loss = self.criterionD(d_fake, fake_label.to('cuda:1')) # 虚假样本的损失
 
             d_total = d_real_loss + d_fake_loss # 总损失
             d_train_loss += d_total.item() # 为了可视化批与整个数据集的变量
@@ -92,10 +92,10 @@ class MyNetTrainer(object):
 
             # Train generator
             self.optimizerG.zero_grad()
-            g_real = self.netG(data) # 虚假样本, torch.Size([4, 3, 1024, 1024])
-            g_fake = self.netD(g_real) # 虚假样本的判别概率
-            gan_loss = self.criterionD(g_fake, real_label) # 虚假样本的生成损失
-            mse_loss = self.criterionG(g_real, target) # 虚假样本的感知损失
+            g_real = self.netG(data.to('cuda:0')) # 虚假样本, torch.Size([4, 3, 1024, 1024])
+            g_fake = self.netD(g_real.to('cuda:1')) # 虚假样本的判别概率
+            gan_loss = self.criterionD(g_fake.to('cuda:0'), real_label.to('cuda:0')) # 虚假样本的生成损失
+            mse_loss = self.criterionG(g_real, target.to('cuda:0')) # 虚假样本的感知损失
 
             g_total = mse_loss + 1e-3 * gan_loss # 总损失
             g_train_loss += g_total.item() # 为了可视化批与整个数据集的变量
