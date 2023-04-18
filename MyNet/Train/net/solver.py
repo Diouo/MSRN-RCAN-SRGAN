@@ -1,12 +1,13 @@
 from math import log10
+import random
+import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
-from torchvision.models.vgg import vgg19
 
-from net.model import Generator, Discriminator
+from net.model import Generator, Discriminator, VGG19
 from .progress_bar import progress_bar
 
 
@@ -14,13 +15,13 @@ class MyNetTrainer(object):
     def __init__(self, config, training_loader, testing_loader):
         super(MyNetTrainer, self).__init__()
         self.GPU_IN_USE = torch.cuda.is_available()
-        self.device = torch.device('cuda' if self.GPU_IN_USE else 'cpu')
         self.netG = None
         self.netD = None
         self.lr = config.lr
         self.nEpochs = config.nEpochs
         self.criterionG = None
         self.criterionD = None
+        self.criterionF= None
         self.optimizerG = None
         self.optimizerD = None
         self.feature_extractor = None
@@ -31,29 +32,36 @@ class MyNetTrainer(object):
         self.training_loader = training_loader
         self.testing_loader = testing_loader
 
+
     def build_model(self):
-        self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to('cuda:0')
-        print(next(self.netG.parameters()).device)
-        self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:1')
-        print(next(self.netD.parameters()).device)
-        self.feature_extractor = vgg19(weights='IMAGENET1K_V1').to('cuda:1')
-        self.netG.weight_init(mean=0.0, std=0.2)
-        self.netD.weight_init(mean=0.0, std=0.2)
-        self.criterionG = nn.MSELoss()
-        self.criterionD = nn.BCELoss()
-        
         if self.GPU_IN_USE:
+            # set the random number seed
+            np.random.seed(self.seed)
+            random.seed(self.seed)
             torch.manual_seed(self.seed)
             torch.cuda.manual_seed(self.seed)
             cudnn.benchmark = True
-            self.feature_extractor.cuda()
-            self.criterionG.cuda()
-            self.criterionD.cuda()
+            
+            # build Generator
+            self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to('cuda:0')
+            # print(next(self.netG.parameters()).device)
+            self.netG.weight_init(mean=0.0, std=0.2)
+            self.criterionG = nn.MSELoss()
+            self.criterionG.to('cuda:0')
+            self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.lr)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 75, 100], gamma=0.5)  # lr decay
+            
+            # build Discriminator
+            self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:1')
+            self.netD.weight_init(mean=0.0, std=0.2)
+            # print(next(self.netD.parameters()).device)
+            self.criterionD = nn.BCELoss()
+            self.criterionD.to('cuda:1')
+            self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.lr / 100)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 75, 100], gamma=0.5)  # lr decay
 
-        self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.lr)
-        self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.lr / 100)
-        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 75, 100], gamma=0.5)  # lr decay
-        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 75, 100], gamma=0.5)  # lr decay
+            # build feature extractor
+            self.feature_extractor = VGG19().to('cuda:0')
 
 
     def save(self, model_out_path):
@@ -67,8 +75,8 @@ class MyNetTrainer(object):
 
     def train(self):
         # models setup
-        self.netG.train()
-        self.netD.train()
+
+        self.feature_extractor.eval()
         g_train_loss = 0
         d_train_loss = 0
         for batch_num, (data, target) in enumerate(self.training_loader):
@@ -78,6 +86,9 @@ class MyNetTrainer(object):
             # data, target = data.to(self.device), target.to(self.device) # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
 
             # Train Discriminator
+            self.netG.eval()
+            self.netD.train()
+
             self.optimizerD.zero_grad()
             d_real = self.netD(target.to('cuda:1')) # 真实样本的判别概率
             d_real_loss = self.criterionD(d_real, real_label.to('cuda:1')) # 真实样本的损失
@@ -91,13 +102,17 @@ class MyNetTrainer(object):
             self.optimizerD.step()
 
             # Train generator
+            self.netG.train()
+            self.netD.eval()
+
             self.optimizerG.zero_grad()
             g_real = self.netG(data.to('cuda:0')) # 虚假样本, torch.Size([4, 3, 1024, 1024])
             g_fake = self.netD(g_real.to('cuda:1')) # 虚假样本的判别概率
-            gan_loss = self.criterionD(g_fake.to('cuda:0'), real_label.to('cuda:0')) # 虚假样本的生成损失
-            mse_loss = self.criterionG(g_real, target.to('cuda:0')) # 虚假样本的感知损失
+            gan_loss = self.criterionD(g_fake.to('cuda:0'), real_label.to('cuda:0')) # 虚假样本的对抗损失
+            mse_loss = self.criterionG(g_real, target.to('cuda:0')) # 虚假样本的距离损失
+            content_loss = self.feature_extractor.forward(g_real,target.to('cuda:0')) # 虚假样本的感知损失
 
-            g_total = mse_loss + 1e-3 * gan_loss # 总损失
+            g_total = mse_loss + 1e-3 * gan_loss + content_loss# 总损失
             g_train_loss += g_total.item() # 为了可视化批与整个数据集的变量
             g_total.backward()
             self.optimizerG.step()
@@ -113,7 +128,7 @@ class MyNetTrainer(object):
 
         with torch.no_grad():
             for batch_num, (data, target) in enumerate(self.testing_loader):
-                data, target = data.to(self.device), target.to(self.device)
+                data, target = data.to('cuda:0'), target.to('cuda:0')
                 prediction = self.netG(data)
 
                 mse = self.criterionG(prediction, target)
@@ -123,6 +138,7 @@ class MyNetTrainer(object):
                 progress_bar(batch_num, len(self.testing_loader), 'PSNR: %.4f' % (avg_psnr / (batch_num + 1)))
 
         print("    Average PSNR: {:.4f} dB".format(avg_psnr / len(self.testing_loader)))
+
 
     def run(self):
         self.build_model()

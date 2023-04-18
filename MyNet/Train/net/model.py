@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import transforms
+from torchvision.models.vgg import vgg19
+from torchvision.models.feature_extraction import create_feature_extractor
 
 
 def normal_init(m, mean, std):
@@ -124,3 +127,41 @@ class Discriminator(nn.Module):
         for m in self._modules:
             normal_init(self._modules[m], mean, std)
 
+
+class VGG19(nn.Module):
+    def __init__(
+            self,
+            feature_model_extractor_node = "features.35",
+            feature_model_normalize_mean = [0.485, 0.456, 0.406],
+            feature_model_normalize_std= [0.229, 0.224, 0.225]
+    ) -> None:
+        super(VGG19, self).__init__()
+        # Get the name of the specified feature extraction node
+        self.feature_model_extractor_node = feature_model_extractor_node
+        # Load the VGG19 model trained on the ImageNet dataset.
+        model = vgg19(weights='IMAGENET1K_V1')
+        # Extract the thirty-sixth layer output in the VGG19 model as the content loss.
+        self.feature_extractor = create_feature_extractor(model, [feature_model_extractor_node])
+        # set to validation mode
+        self.feature_extractor.eval()
+
+        # The preprocessing method of the input data. 
+        # This is the VGG model preprocessing method of the ImageNet dataset.
+        self.normalize = transforms.Normalize(feature_model_normalize_mean, feature_model_normalize_std)
+
+        # Freeze model parameters.
+        for model_parameters in self.feature_extractor.parameters():
+            model_parameters.requires_grad = False
+
+    def forward(self, sr_tensor, gt_tensor):
+        # Standardized operations
+        sr_tensor = self.normalize(sr_tensor)
+        gt_tensor = self.normalize(gt_tensor)
+
+        sr_feature = self.feature_extractor(sr_tensor)[self.feature_model_extractor_node]
+        gt_feature = self.feature_extractor(gt_tensor)[self.feature_model_extractor_node]
+
+        # Find the feature map difference between the two images
+        loss = F.mse_loss(sr_feature, gt_feature)
+
+        return loss
