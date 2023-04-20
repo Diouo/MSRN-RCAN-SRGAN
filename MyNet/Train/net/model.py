@@ -72,9 +72,19 @@ class Generator(nn.Module):
 
         return self.conv3(x)
 
-    def weight_init(self, mean=0.0, std=0.02):
+    # def weight_init(self, mean=0.0, std=0.02):
+    #     for m in self._modules:
+    #         normal_init(self._modules[m], mean, std)
+
+    def weight_init(self, mean=0.0, std=0.02) -> None:
         for m in self._modules:
-            normal_init(self._modules[m], mean, std)
+            module = self._modules[m]
+            if isinstance(module, nn.Conv2d):
+                nn.init.kaiming_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.BatchNorm2d):
+                nn.init.constant_(module.weight, 1)
     
 
 class Discriminator(nn.Module):
