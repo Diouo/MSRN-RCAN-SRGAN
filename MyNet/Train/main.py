@@ -20,8 +20,8 @@ parser.add_argument('--dataSet', type=str, default='DIV2K', help='desicion of da
 parser.add_argument('--crop_size', type=int, default=256, help='crop size of the sample')
 
 # hyper-parameters
-parser.add_argument('--batchSize', type=int, default=4, help='training batch size')
-parser.add_argument('--testBatchSize', type=int, default=4, help='testing batch size')
+parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
+parser.add_argument('--testBatchSize', type=int, default=16, help='testing batch size')
 parser.add_argument('--nEpochs', type=int, default=200, help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=1e-5, help='Learning Rate. Default=0.01')
 parser.add_argument('--seed', type=int, default=42, help='random seed to use. Default=123')
@@ -41,6 +41,7 @@ if __name__ == '__main__':
     model_out_path = '/home/guozy/BISHE/MyNet/result/' + now
     if os.path.exists(model_out_path) == False:
             os.mkdir(model_out_path)
+    
     
     # ===========================================================
     # To store settings information of model
@@ -64,6 +65,7 @@ if __name__ == '__main__':
     # ===========================================================
     # train model
     # ===========================================================
+    time_start = time.time()
     model = MyNetTrainer(args, training_data_loader, testing_data_loader)
     model.run()
 

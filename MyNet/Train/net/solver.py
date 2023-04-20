@@ -112,7 +112,7 @@ class MyNetTrainer(object):
             mse_loss = self.criterionG(g_real, target.to('cuda:0')) # 虚假样本的距离损失
             content_loss = self.feature_extractor.forward(g_real,target.to('cuda:0')) # 虚假样本的感知损失
 
-            g_total = mse_loss + 1e-3 * gan_loss + content_loss# 总损失
+            g_total = mse_loss + 1e-3 * gan_loss + 0.006 * content_loss# 总损失
             g_train_loss += g_total.item() # 为了可视化批与整个数据集的变量
             g_total.backward()
             self.optimizerG.step()
