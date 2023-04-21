@@ -6,28 +6,50 @@ from torchvision.models.vgg import vgg19
 from torchvision.models.feature_extraction import create_feature_extractor
 
 
-def normal_init(m, mean, std):
-    if isinstance(m, nn.ConvTranspose2d) or isinstance(m, nn.Conv2d):
-        m.weight.data.normal_(mean, std)
-        m.bias.data.zero_()
-
-
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, kernel, out_channels, stride):
         super(ResidualBlock, self).__init__()
         self.prelu = nn.PReLU()
+        self.sigmoid = nn.Sigmoid()
+        self.relu = nn.ReLU()
+
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=kernel, stride=stride, padding=kernel // 2)
-        self.bn1 = nn.BatchNorm2d(out_channels)
+        # self.bn1 = nn.BatchNorm2d(out_channels)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=kernel, stride=stride, padding=kernel // 2)
-        self.bn2 = nn.BatchNorm2d(out_channels)
+        # self.bn2 = nn.BatchNorm2d(out_channels)
+
+        self.conv3 = nn.Conv2d(in_channels, out_channels, kernel_size=5, stride=stride, padding=5 // 2)
+        self.conv4 = nn.Conv2d(out_channels, out_channels, kernel_size=5, stride=stride, padding=5 // 2)
+        self.confusion = nn.Conv2d(out_channels * 2, out_channels, kernel_size=1, stride=stride)
+
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.avg_conv1 = nn.Conv2d(in_channels, in_channels // 16, kernel_size=1, stride=1, padding=0, bias=True)
+        self.avg_conv2 = nn.Conv2d(in_channels // 16, in_channels, kernel_size=1, stride=1, padding=0, bias=True)
 
     def forward(self, x):
-        y = self.prelu(self.bn1(self.conv1(x)))
-        return self.bn2(self.conv2(y)) + x
+        # y = self.prelu(self.bn1(self.conv1(x)))
+        # y = self.bn2(self.conv2(y))
+        
+        y1 = self.prelu(self.conv1(x))
+        y1 = self.conv2(y1)
+
+        y2 = self.prelu(self.conv3(x))
+        y2 = self.conv4(y2)
+
+        y = torch.cat((y1, y2), dim=1)
+        y = self.confusion(y)
+
+        z = self.avg_pool(y)
+        z = self.avg_conv1(z)
+        z = self.relu(z)
+        z = self.avg_conv2(z)
+        z = self.sigmoid(z)
+
+        out = z * y + x
+        return  out
 
 
 class UpsampleBlock(nn.Module):
-    # Implements resize-convolution
     def __init__(self, in_channels):
         super(UpsampleBlock, self).__init__()
         self.prelu = nn.PReLU()
@@ -71,10 +93,6 @@ class Generator(nn.Module):
             x = self.__getattr__('upsample' + str(i + 1))(x)
 
         return self.conv3(x)
-
-    # def weight_init(self, mean=0.0, std=0.02):
-    #     for m in self._modules:
-    #         normal_init(self._modules[m], mean, std)
 
     def weight_init(self, mean=0.0, std=0.02) -> None:
         for m in self._modules:
@@ -134,9 +152,15 @@ class Discriminator(nn.Module):
         
         return x
 
-    def weight_init(self, mean=0.0, std=0.02):
+    def weight_init(self, mean=0.0, std=0.02) -> None:
         for m in self._modules:
-            normal_init(self._modules[m], mean, std)
+            module = self._modules[m]
+            if isinstance(module, nn.Conv2d):
+                nn.init.kaiming_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.BatchNorm2d):
+                nn.init.constant_(module.weight, 1)
 
 
 class VGG19(nn.Module):
