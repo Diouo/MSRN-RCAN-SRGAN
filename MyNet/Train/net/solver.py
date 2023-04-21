@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
+from torch.autograd import Variable
+from torch import autograd
 
 from net.model import Generator, Discriminator, VGG19
 from .progress_bar import progress_bar
@@ -48,7 +50,7 @@ class MyNetTrainer(object):
             self.netG.weight_init(mean=0.0, std=0.2)
             self.criterionG = nn.MSELoss()
             self.criterionG.to('cuda:0')
-            self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.lr)
+            self.optimizerG = optim.RMSprop(self.netG.parameters(), lr=self.lr)
             self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 75, 100], gamma=0.5)  # lr decay
             
             # build Discriminator
@@ -57,7 +59,7 @@ class MyNetTrainer(object):
             # print(next(self.netD.parameters()).device)
             self.criterionD = nn.BCELoss()
             self.criterionD.to('cuda:1')
-            self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.lr / 100)
+            self.optimizerD = optim.RMSprop(self.netD.parameters(), lr=self.lr / 100)
             self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 75, 100], gamma=0.5)  # lr decay
 
             # build feature extractor
@@ -73,53 +75,89 @@ class MyNetTrainer(object):
         print("Checkpoint saved to {}".format(d_model_out_path))
 
 
+    def pretrain(self):
+        print('\n===> Pretrain')
+        for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
+            self.netG.eval()
+            self.netD.train()
+            self.optimizerD.zero_grad()
+
+            d_real = self.netD(target.to('cuda:1')) # 真实样本的判别概率
+            d_real_loss = torch.mean(d_real)
+
+            d_fake = self.netD(self.netG(data.to('cuda:0')).to('cuda:1')) # 虚假样本的判别概率
+            d_fake_loss = torch.mean(d_fake)
+
+            # Train with gradient penalty
+            g_real = self.netG(data.to('cuda:0')).to('cuda:1') # 虚假样本, torch.Size([4, 3, 1024, 1024])
+            gradient_penalty = self.calculate_gradient_penalty(target.to('cuda:1').data, g_real.data)
+
+            d_total =  -d_real_loss + d_fake_loss + gradient_penalty # 总损失
+            d_total.backward()
+            self.optimizerD.step()
+
+
     def train(self):
         # models setup
 
         self.feature_extractor.eval()
         g_train_loss = 0
         d_train_loss = 0
-        for batch_num, (data, target) in enumerate(self.training_loader):
+        Wasserstein_D = 0
+        for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
             # setup noise
-            real_label = torch.ones(data.size(0), 1)
-            fake_label = torch.zeros(data.size(0), 1)
-            # data, target = data.to(self.device), target.to(self.device) # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
+            # real_label = torch.ones(data.size(0), 1)
+            # fake_label = torch.zeros(data.size(0), 1)
 
+            # ===========================================================
             # Train Discriminator
+            # ===========================================================
             self.netG.eval()
             self.netD.train()
-
             self.optimizerD.zero_grad()
+
             d_real = self.netD(target.to('cuda:1')) # 真实样本的判别概率
-            d_real_loss = self.criterionD(d_real, real_label.to('cuda:1')) # 真实样本的损失
+            # d_real_loss = self.criterionD(d_real, real_label.to('cuda:1')) # 真实样本的损失
+            d_real_loss = torch.mean(d_real)
 
             d_fake = self.netD(self.netG(data.to('cuda:0')).to('cuda:1')) # 虚假样本的判别概率
-            d_fake_loss = self.criterionD(d_fake, fake_label.to('cuda:1')) # 虚假样本的损失
+            # d_fake_loss = self.criterionD(d_fake, fake_label.to('cuda:1')) # 虚假样本的损失
+            d_fake_loss = torch.mean(d_fake)
 
-            d_total = d_real_loss + d_fake_loss # 总损失
-            d_train_loss += d_total.item() # 为了可视化批与整个数据集的变量
+            # Train with gradient penalty
+            g_real = self.netG(data.to('cuda:0')).to('cuda:1') # 虚假样本, torch.Size([4, 3, 1024, 1024])
+            gradient_penalty = self.calculate_gradient_penalty(target.to('cuda:1').data, g_real.data)
+
+            d_total =  -d_real_loss + d_fake_loss + gradient_penalty * 10 # 总损失
             d_total.backward()
+            d_train_loss += d_total.item() # 为了可视化批与整个数据集的变量
+            Wasserstein_D += d_real_loss - d_fake_loss
             self.optimizerD.step()
 
-            # Train generator
+            # ===========================================================
+            # Train Generator
+            # ===========================================================
             self.netG.train()
             self.netD.eval()
-
             self.optimizerG.zero_grad()
+
             g_real = self.netG(data.to('cuda:0')) # 虚假样本, torch.Size([4, 3, 1024, 1024])
             g_fake = self.netD(g_real.to('cuda:1')) # 虚假样本的判别概率
-            gan_loss = self.criterionD(g_fake.to('cuda:0'), real_label.to('cuda:0')) # 虚假样本的对抗损失
+            # gan_loss = self.criterionD(g_fake.to('cuda:0'), real_label.to('cuda:0')) # 虚假样本的对抗损失
+            gan_loss = torch.mean(g_fake.to('cuda:0'))
             mse_loss = self.criterionG(g_real, target.to('cuda:0')) # 虚假样本的距离损失
             content_loss = self.feature_extractor.forward(g_real,target.to('cuda:0')) # 虚假样本的感知损失
 
-            g_total = mse_loss + 1e-3 * gan_loss + 0.006 * content_loss# 总损失
+            g_total = mse_loss - 1e-3 * gan_loss + 0.006 * content_loss# 总损失
             g_train_loss += g_total.item() # 为了可视化批与整个数据集的变量
             g_total.backward()
             self.optimizerG.step()
 
-            progress_bar(batch_num, len(self.training_loader), 'G_Loss: %.4f | D_Loss: %.4f' % (g_train_loss / (batch_num + 1), d_train_loss / (batch_num + 1)))
-
-        print("    Average G_Loss: {:.4f}".format(g_train_loss / len(self.training_loader)))
+            progress_bar(
+                        batch_num, 
+                        len(self.training_loader), 
+                        'G_Loss: %.4f | D_Loss: %.4f | Wasserstein distance %.4f' % (g_train_loss / (batch_num + 1), d_train_loss / (batch_num + 1), Wasserstein_D/ (batch_num + 1))
+                        )
 
 
     def test(self):
@@ -132,17 +170,15 @@ class MyNetTrainer(object):
                 prediction = self.netG(data)
 
                 mse = self.criterionG(prediction, target)
-                psnr = 10 * log10(1 / mse.item())
-                avg_psnr += psnr
+                avg_psnr += 10 * log10(1 / mse.item())
 
-                progress_bar(batch_num, len(self.testing_loader), 'PSNR: %.4f' % (avg_psnr / (batch_num + 1)))
-
-        print("    Average PSNR: {:.4f} dB".format(avg_psnr / len(self.testing_loader)))
+        print("Average PSNR: {:.4f} dB".format(avg_psnr / len(self.testing_loader)))
 
 
     def run(self):
         self.build_model()
 
+        self.pretrain()
         for epoch in range(1, self.nEpochs + 1):
             print("\n===> Epoch {} starts:".format(epoch))
             self.train()
@@ -150,3 +186,29 @@ class MyNetTrainer(object):
             self.scheduler.step()
 
         self.save()
+
+    def calculate_gradient_penalty(self, real_images, fake_images):
+        eta = torch.FloatTensor(16,1,1,1).uniform_(0,1)
+        eta = eta.expand(16, real_images.size(1), real_images.size(2), real_images.size(3)).to('cuda:1')
+        interpolated = eta * real_images + ((1 - eta) * fake_images)
+
+        # define it to calculate gradient
+        interpolated = Variable(interpolated, requires_grad=True)
+
+        # calculate probability of interpolated examples
+        prob_interpolated = self.netD(interpolated)
+
+        # calculate gradients of probabilities with respect to examples
+        gradients = autograd.grad(
+                                    outputs=prob_interpolated,
+                                    inputs=interpolated,
+                                    grad_outputs=torch.ones(prob_interpolated.size()).to('cuda:1'),
+                                    create_graph=True, retain_graph=True
+                                )[0]
+
+        # print(gradients.norm(2, dim=1).size())
+        # grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+        gradients = gradients.reshape(16,-1)
+        grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+        
+        return grad_penalty

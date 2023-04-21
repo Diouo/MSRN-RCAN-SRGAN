@@ -90,7 +90,7 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, num_channel=3, base_filter=64):
         super(Discriminator, self).__init__()
-        self.leakyrelu = nn.LeakyReLU(negative_slope=0.2, inplace=False)
+        self.leakyrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.conv1 = nn.Conv2d(num_channel, base_filter, kernel_size=3, stride=1, padding=1)
 
         self.conv2 = nn.Conv2d(base_filter, base_filter, kernel_size=3, stride=2, padding=1)
@@ -129,7 +129,8 @@ class Discriminator(nn.Module):
         x = self.avepool(x)
         x = self.flatten(x)
         x = self.leakyrelu(self.linear1(x))
-        x = self.sigmoid(self.linear2(x))
+        x = self.linear2(x)
+        # x = self.sigmoid(self.linear2(x))
         
         return x
 

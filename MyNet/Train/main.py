@@ -21,7 +21,7 @@ parser.add_argument('--crop_size', type=int, default=256, help='crop size of the
 
 # hyper-parameters
 parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
-parser.add_argument('--testBatchSize', type=int, default=16, help='testing batch size')
+parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
 parser.add_argument('--nEpochs', type=int, default=200, help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=1e-5, help='Learning Rate. Default=0.01')
 parser.add_argument('--seed', type=int, default=42, help='random seed to use. Default=123')
@@ -58,7 +58,7 @@ if __name__ == '__main__':
     print('\n===> Loading datasets')
     train_set = get_training_set(args.upscale_factor,args.crop_size, args.dataSet)
     test_set = get_test_set(args.upscale_factor, args.crop_size, args.dataSet)
-    training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True)
+    training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=4,)
     testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False)
 
 
