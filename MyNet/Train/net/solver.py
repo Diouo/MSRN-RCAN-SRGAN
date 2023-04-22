@@ -1,6 +1,7 @@
 from math import log10
 import random
 import numpy as np
+from PIL import Image
 from skimage.metrics import structural_similarity as ssim
 
 import torch
@@ -8,6 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
+from torchvision.transforms import ToTensor
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
 
@@ -35,7 +37,7 @@ class MyNetTrainer(object):
         self.training_loader = training_loader
         self.testing_loader = testing_loader
         self.model_out_path = model_out_path
-        self.writer = SummaryWriter(model_out_path + '/tensorborad')
+        self.writer = SummaryWriter(model_out_path + '/tensorboard')
 
 
     def build_model(self):
@@ -54,7 +56,7 @@ class MyNetTrainer(object):
             self.criterionG = nn.MSELoss()
             self.criterionG.to('cuda:0')
             self.optimizerG = optim.RMSprop(self.netG.parameters(), lr=self.lr)
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 75, 100], gamma=0.5)  # lr decay
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[100, 200, 300, 400], gamma=0.5)  # lr decay
             
             # build Discriminator
             self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:1')
@@ -62,20 +64,11 @@ class MyNetTrainer(object):
             # print(next(self.netD.parameters()).device)
             self.criterionD = nn.BCELoss()
             self.criterionD.to('cuda:1')
-            self.optimizerD = optim.RMSprop(self.netD.parameters(), lr=self.lr / 100)
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 75, 100], gamma=0.5)  # lr decay
+            self.optimizerD = optim.RMSprop(self.netD.parameters(), lr=self.lr)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[100, 200, 300, 400], gamma=0.5)  # lr decay
 
             # build feature extractor
             self.feature_extractor = VGG19().to('cuda:0')
-
-
-    def save(self, model_out_path):
-        g_model_out_path = model_out_path + "/MyNet_Generator_model_path.pth"
-        d_model_out_path = model_out_path + "/MyNet_Discriminator_model_path.pth"
-        torch.save(self.netG, g_model_out_path)
-        torch.save(self.netD, d_model_out_path)
-        print("Checkpoint saved to {}".format(g_model_out_path))
-        print("Checkpoint saved to {}".format(d_model_out_path))
 
 
     def pretrain(self):
@@ -101,7 +94,7 @@ class MyNetTrainer(object):
 
 
     def train(self,epoch):
-        # models setup
+        print('     Training')
 
         self.feature_extractor.eval()
         g_train_loss = 0
@@ -162,6 +155,8 @@ class MyNetTrainer(object):
 
 
     def test(self,epoch):
+        print('     Testing')
+
         self.netG.eval()
         avg_psnr = 0
         avg_ssim = 0
@@ -174,20 +169,55 @@ class MyNetTrainer(object):
                 mse = self.criterionG(prediction, target)
                 avg_psnr += 10 * log10(1 / mse.item())
                 avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy(), target.squeeze(dim=0).cpu().numpy(), channel_axis=0) 
+        
+        img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
+        data = (ToTensor()(img)) 
+        data = data.to('cuda:0').unsqueeze(0) # torch.Size([1, 3, 256, 256])
+        out = self.netG(data)
+        out = out.detach().squeeze(0).clip(0, 255)
 
         self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
         self.writer.add_scalar(tag="test/SSIM", scalar_value=avg_ssim / len(self.testing_loader), global_step=epoch)
+        self.writer.add_image("test/IMAGE", out, epoch, dataformats='CHW')
+
+        return avg_psnr, avg_ssim
+
+    def save(self, epoch):
+        print('     Saving')
+        g_model_out_path = self.model_out_path +'/checkpoints/epoch_' + str(epoch) + "/Generator_model_path.pkl"
+        d_model_out_path = self.model_out_path +'/checkpoints/epoch_' + str(epoch) +"/Discriminator_model_path.pkl"
+
+        checkpoint_G={'modle':Generator(),
+             'model_state_dict':self.netG.state_dict(),
+             'optimize_state_dict':self.optimizerG.state_dict(),
+             'epoch':epoch}
+        
+        checkpoint_D={'modle':Discriminator(),
+             'model_state_dict':self.netD.state_dict(),
+             'optimize_state_dict':self.optimizerD.state_dict(),
+             'epoch':epoch}
+
+        torch.save(checkpoint_G, g_model_out_path)
+        torch.save(checkpoint_D, d_model_out_path)
 
 
     def run(self):
-        self.build_model()
+        best_psnr = 0
+        best_ssim = 0
 
+        self.build_model()
         self.pretrain()
         for epoch in range(1, self.nEpochs + 1):
             print("\n===> Epoch {} starts".format(epoch))
+
             self.train(epoch)
-            self.test(epoch)
+            temp_psnr, temp_ssim = self.test(epoch)
             self.scheduler.step()
+
+            if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
+                best_psnr = temp_psnr
+                best_ssim = temp_ssim
+                self.save(epoch)
 
 
     def calculate_gradient_penalty(self, real_images, fake_images):
