@@ -14,10 +14,7 @@ class ResidualBlock(nn.Module):
         self.relu = nn.ReLU()
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=kernel, stride=stride, padding=kernel // 2)
-        # self.bn1 = nn.BatchNorm2d(out_channels)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=kernel, stride=stride, padding=kernel // 2)
-        # self.bn2 = nn.BatchNorm2d(out_channels)
-
         self.conv3 = nn.Conv2d(in_channels, out_channels, kernel_size=5, stride=stride, padding=5 // 2)
         self.conv4 = nn.Conv2d(out_channels, out_channels, kernel_size=5, stride=stride, padding=5 // 2)
         self.confusion = nn.Conv2d(out_channels * 2, out_channels, kernel_size=1, stride=stride)
@@ -27,8 +24,6 @@ class ResidualBlock(nn.Module):
         self.avg_conv2 = nn.Conv2d(in_channels // 16, in_channels, kernel_size=1, stride=1, padding=0, bias=True)
 
     def forward(self, x):
-        # y = self.prelu(self.bn1(self.conv1(x)))
-        # y = self.bn2(self.conv2(y))
         
         y1 = self.prelu(self.conv1(x))
         y1 = self.conv2(y1)
@@ -147,8 +142,7 @@ class Discriminator(nn.Module):
         x = self.avepool(x)
         x = self.flatten(x)
         x = self.leakyrelu(self.linear1(x))
-        x = self.linear2(x)
-        # x = self.sigmoid(self.linear2(x))
+        x = self.sigmoid(self.linear2(x))
         
         return x
 

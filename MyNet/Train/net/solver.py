@@ -1,6 +1,7 @@
-from math import log10
 import random
 import numpy as np
+import os
+from math import log10
 from PIL import Image
 from skimage.metrics import structural_similarity as ssim
 
@@ -51,21 +52,19 @@ class MyNetTrainer(object):
             
             # build Generator
             self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to('cuda:0')
-            # print(next(self.netG.parameters()).device)
             self.netG.weight_init(mean=0.0, std=0.2)
             self.criterionG = nn.MSELoss()
             self.criterionG.to('cuda:0')
-            self.optimizerG = optim.RMSprop(self.netG.parameters(), lr=self.lr)
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[100, 200, 300, 400], gamma=0.5)  # lr decay
+            self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.lr)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200], gamma=0.5)  # lr decay
             
             # build Discriminator
             self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:1')
             self.netD.weight_init(mean=0.0, std=0.2)
-            # print(next(self.netD.parameters()).device)
             self.criterionD = nn.BCELoss()
             self.criterionD.to('cuda:1')
-            self.optimizerD = optim.RMSprop(self.netD.parameters(), lr=self.lr)
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[100, 200, 300, 400], gamma=0.5)  # lr decay
+            self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.lr)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200], gamma=0.5)  # lr decay
 
             # build feature extractor
             self.feature_extractor = VGG19().to('cuda:0')
@@ -78,17 +77,16 @@ class MyNetTrainer(object):
             self.netD.train()
             self.optimizerD.zero_grad()
 
+            real_label = torch.ones(data.size(0), 1)
+            fake_label = torch.zeros(data.size(0), 1)
+
             d_real = self.netD(target.to('cuda:1')) # 真实样本的判别概率
-            d_real_loss = torch.mean(d_real)
+            d_real_loss = self.criterionD(d_real, real_label.to('cuda:1')) # 真实样本的损失
 
             d_fake = self.netD(self.netG(data.to('cuda:0')).to('cuda:1')) # 虚假样本的判别概率
-            d_fake_loss = torch.mean(d_fake)
+            d_fake_loss = self.criterionD(d_fake, fake_label.to('cuda:1')) # 虚假样本的损失
 
-            # Train with gradient penalty
-            g_real = self.netG(data.to('cuda:0')).to('cuda:1') # 虚假样本, torch.Size([4, 3, 1024, 1024])
-            gradient_penalty = self.calculate_gradient_penalty(target.to('cuda:1').data, g_real.data)
-
-            d_total =  -d_real_loss + d_fake_loss + gradient_penalty # 总损失
+            d_total =  d_real_loss + d_fake_loss  # 总损失
             d_total.backward()
             self.optimizerD.step()
 
@@ -99,11 +97,11 @@ class MyNetTrainer(object):
         self.feature_extractor.eval()
         g_train_loss = 0
         d_train_loss = 0
-        Wasserstein_D = 0
+
         for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
             # setup noise
-            # real_label = torch.ones(data.size(0), 1)
-            # fake_label = torch.zeros(data.size(0), 1)
+            real_label = torch.ones(data.size(0), 1)
+            fake_label = torch.zeros(data.size(0), 1)
 
             # ===========================================================
             # Train Discriminator
@@ -113,21 +111,14 @@ class MyNetTrainer(object):
             self.optimizerD.zero_grad()
 
             d_real = self.netD(target.to('cuda:1')) # 真实样本的判别概率
-            # d_real_loss = self.criterionD(d_real, real_label.to('cuda:1')) # 真实样本的损失
-            d_real_loss = torch.mean(d_real)
+            d_real_loss = self.criterionD(d_real, real_label.to('cuda:1')) # 真实样本的损失
 
             d_fake = self.netD(self.netG(data.to('cuda:0')).to('cuda:1')) # 虚假样本的判别概率
-            # d_fake_loss = self.criterionD(d_fake, fake_label.to('cuda:1')) # 虚假样本的损失
-            d_fake_loss = torch.mean(d_fake)
+            d_fake_loss = self.criterionD(d_fake, fake_label.to('cuda:1')) # 虚假样本的损失
 
-            # Train with gradient penalty
-            g_real = self.netG(data.to('cuda:0')).to('cuda:1') # 虚假样本, torch.Size([4, 3, 1024, 1024])
-            gradient_penalty = self.calculate_gradient_penalty(target.to('cuda:1').data, g_real.data)
-
-            d_total =  -d_real_loss + d_fake_loss + gradient_penalty * 10 # 总损失
+            d_total =  d_real_loss + d_fake_loss  # 总损失
             d_total.backward()
             d_train_loss += d_total.item() # 为了可视化批与整个数据集的变量
-            Wasserstein_D += d_real_loss - d_fake_loss
             self.optimizerD.step()
 
             # ===========================================================
@@ -139,19 +130,17 @@ class MyNetTrainer(object):
 
             g_real = self.netG(data.to('cuda:0')) # 虚假样本, torch.Size([4, 3, 1024, 1024])
             g_fake = self.netD(g_real.to('cuda:1')) # 虚假样本的判别概率
-            # gan_loss = self.criterionD(g_fake.to('cuda:0'), real_label.to('cuda:0')) # 虚假样本的对抗损失
-            gan_loss = torch.mean(g_fake.to('cuda:0'))
+            gan_loss = self.criterionD(g_fake.to('cuda:0'), real_label.to('cuda:0')) # 虚假样本的对抗损失
             mse_loss = self.criterionG(g_real, target.to('cuda:0')) # 虚假样本的距离损失
             content_loss = self.feature_extractor.forward(g_real,target.to('cuda:0')) # 虚假样本的感知损失
 
-            g_total = mse_loss - 1e-3 * gan_loss + 0.006 * content_loss# 总损失
+            g_total = mse_loss + 1e-3 * gan_loss + 0.006 * content_loss# 总损失
             g_train_loss += g_total.item() # 为了可视化批与整个数据集的变量
             g_total.backward()
             self.optimizerG.step()
             
         self.writer.add_scalar(tag="train/G_loss", scalar_value=g_train_loss / (batch_num + 1), global_step=epoch)
         self.writer.add_scalar(tag="train/D_loss", scalar_value=d_train_loss / (batch_num + 1), global_step=epoch)
-        self.writer.add_scalar(tag="train/Wasserstein_distance", scalar_value=Wasserstein_D / (batch_num + 1), global_step=epoch)
 
 
     def test(self,epoch):
@@ -184,15 +173,18 @@ class MyNetTrainer(object):
 
     def save(self, epoch):
         print('     Saving')
-        g_model_out_path = self.model_out_path +'/checkpoints/epoch_' + str(epoch) + "/Generator_model_path.pkl"
-        d_model_out_path = self.model_out_path +'/checkpoints/epoch_' + str(epoch) +"/Discriminator_model_path.pkl"
 
-        checkpoint_G={'modle':Generator(),
+        if os.path.exists(self.model_out_path +'/checkpoints/') == False:
+            os.mkdir(self.model_out_path +'/checkpoints/')
+        g_model_out_path = self.model_out_path +'/checkpoints/epoch_' + str(epoch) + "_Generator.pkl"
+        d_model_out_path = self.model_out_path +'/checkpoints/epoch_' + str(epoch) +"_Discriminator.pkl"
+
+        checkpoint_G={'modle':Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3),
              'model_state_dict':self.netG.state_dict(),
              'optimize_state_dict':self.optimizerG.state_dict(),
              'epoch':epoch}
         
-        checkpoint_D={'modle':Discriminator(),
+        checkpoint_D={'modle':Discriminator(base_filter=64, num_channel=3),
              'model_state_dict':self.netD.state_dict(),
              'optimize_state_dict':self.optimizerD.state_dict(),
              'epoch':epoch}
@@ -218,30 +210,3 @@ class MyNetTrainer(object):
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
                 self.save(epoch)
-
-
-    def calculate_gradient_penalty(self, real_images, fake_images):
-        eta = torch.FloatTensor(16,1,1,1).uniform_(0,1)
-        eta = eta.expand(16, real_images.size(1), real_images.size(2), real_images.size(3)).to('cuda:1')
-        interpolated = eta * real_images + ((1 - eta) * fake_images)
-
-        # define it to calculate gradient
-        interpolated = Variable(interpolated, requires_grad=True)
-
-        # calculate probability of interpolated examples
-        prob_interpolated = self.netD(interpolated)
-
-        # calculate gradients of probabilities with respect to examples
-        gradients = autograd.grad(
-                                    outputs=prob_interpolated,
-                                    inputs=interpolated,
-                                    grad_outputs=torch.ones(prob_interpolated.size()).to('cuda:1'),
-                                    create_graph=True, retain_graph=True
-                                )[0]
-
-        # print(gradients.norm(2, dim=1).size())
-        # grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
-        gradients = gradients.reshape(16,-1)
-        grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
-        
-        return grad_penalty
