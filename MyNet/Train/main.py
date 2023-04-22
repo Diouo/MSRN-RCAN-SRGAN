@@ -66,7 +66,7 @@ if __name__ == '__main__':
     # train model
     # ===========================================================
     time_start = time.time()
-    model = MyNetTrainer(args, training_data_loader, testing_data_loader)
+    model = MyNetTrainer(args, training_data_loader, testing_data_loader, model_out_path)
     model.run()
 
 
@@ -84,4 +84,3 @@ if __name__ == '__main__':
     # save and eval the model
     # ===========================================================
     model.save(model_out_path)
-    model.test(model_out_path)

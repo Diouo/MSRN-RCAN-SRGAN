@@ -1,6 +1,7 @@
 from math import log10
 import random
 import numpy as np
+from skimage.metrics import structural_similarity as ssim
 
 import torch
 import torch.nn as nn
@@ -8,13 +9,13 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 from torch import autograd
+from torch.utils.tensorboard import SummaryWriter
 
 from net.model import Generator, Discriminator, VGG19
-from .progress_bar import progress_bar
 
 
 class MyNetTrainer(object):
-    def __init__(self, config, training_loader, testing_loader):
+    def __init__(self, config, training_loader, testing_loader, model_out_path):
         super(MyNetTrainer, self).__init__()
         self.GPU_IN_USE = torch.cuda.is_available()
         self.netG = None
@@ -33,6 +34,8 @@ class MyNetTrainer(object):
         self.num_residuals = 16
         self.training_loader = training_loader
         self.testing_loader = testing_loader
+        self.model_out_path = model_out_path
+        self.writer = SummaryWriter(model_out_path + '/tensorborad')
 
 
     def build_model(self):
@@ -77,7 +80,7 @@ class MyNetTrainer(object):
 
     def pretrain(self):
         print('\n===> Pretrain')
-        for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
+        for _, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
             self.netG.eval()
             self.netD.train()
             self.optimizerD.zero_grad()
@@ -97,7 +100,7 @@ class MyNetTrainer(object):
             self.optimizerD.step()
 
 
-    def train(self):
+    def train(self,epoch):
         # models setup
 
         self.feature_extractor.eval()
@@ -152,27 +155,28 @@ class MyNetTrainer(object):
             g_train_loss += g_total.item() # 为了可视化批与整个数据集的变量
             g_total.backward()
             self.optimizerG.step()
-
-            progress_bar(
-                        batch_num, 
-                        len(self.training_loader), 
-                        'G_Loss: %.4f | D_Loss: %.4f | Wasserstein distance %.4f' % (g_train_loss / (batch_num + 1), d_train_loss / (batch_num + 1), Wasserstein_D/ (batch_num + 1))
-                        )
+            
+        self.writer.add_scalar(tag="train/G_loss", scalar_value=g_train_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/D_loss", scalar_value=d_train_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/Wasserstein_distance", scalar_value=Wasserstein_D / (batch_num + 1), global_step=epoch)
 
 
-    def test(self):
+    def test(self,epoch):
         self.netG.eval()
         avg_psnr = 0
+        avg_ssim = 0
 
         with torch.no_grad():
-            for batch_num, (data, target) in enumerate(self.testing_loader):
+            for _, (data, target) in enumerate(self.testing_loader):
                 data, target = data.to('cuda:0'), target.to('cuda:0')
                 prediction = self.netG(data)
 
                 mse = self.criterionG(prediction, target)
                 avg_psnr += 10 * log10(1 / mse.item())
+                avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy(), target.squeeze(dim=0).cpu().numpy(), channel_axis=0) 
 
-        print("Average PSNR: {:.4f} dB".format(avg_psnr / len(self.testing_loader)))
+        self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
+        self.writer.add_scalar(tag="test/SSIM", scalar_value=avg_ssim / len(self.testing_loader), global_step=epoch)
 
 
     def run(self):
@@ -180,12 +184,11 @@ class MyNetTrainer(object):
 
         self.pretrain()
         for epoch in range(1, self.nEpochs + 1):
-            print("\n===> Epoch {} starts:".format(epoch))
-            self.train()
-            self.test()
+            print("\n===> Epoch {} starts".format(epoch))
+            self.train(epoch)
+            self.test(epoch)
             self.scheduler.step()
 
-        self.save()
 
     def calculate_gradient_penalty(self, real_images, fake_images):
         eta = torch.FloatTensor(16,1,1,1).uniform_(0,1)
