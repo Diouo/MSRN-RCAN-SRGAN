@@ -67,7 +67,6 @@ class Generator(nn.Module):
             self.add_module('residual_block' + str(i + 1), ResidualBlock(in_channels=base_filter, out_channels=base_filter, kernel=3, stride=1))
 
         self.conv2 = nn.Conv2d(base_filter, base_filter, kernel_size=3, stride=1, padding=1)
-        self.bn2 = nn.BatchNorm2d(base_filter)
 
         for i in range(self.upsample_factor // 2):
             self.add_module('upsample' + str(i + 1), UpsampleBlock(base_filter))
@@ -81,12 +80,15 @@ class Generator(nn.Module):
         for i in range(self.n_residual_blocks):
             y = self.__getattr__('residual_block' + str(i + 1))(y)
 
-        x = self.bn2(self.conv2(y)) + x
+        x = self.conv2(y) + x
 
         for i in range(self.upsample_factor // 2):
             x = self.__getattr__('upsample' + str(i + 1))(x)
 
-        return self.conv3(x)
+        x = self.conv3(x)
+        x = torch.clamp_(x, 0.0, 1.0)
+
+        return x
 
     def weight_init(self, mean=0.0, std=0.02) -> None:
         for m in self._modules:

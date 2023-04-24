@@ -101,6 +101,7 @@ class MyNetTrainer(object):
         d_train_loss = 0
 
         for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
+
             # setup noise
             real_label = torch.ones(data.size(0), 1)
             fake_label = torch.zeros(data.size(0), 1)
@@ -164,8 +165,7 @@ class MyNetTrainer(object):
         img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
         data = (ToTensor()(img)) 
         data = data.to('cuda:0').unsqueeze(0) # torch.Size([1, 3, 256, 256])
-        out = self.netG(data)
-        out = out.detach().squeeze(0).clip(0, 255)
+        out = self.netG(data).detach().squeeze(0) * 255.0 # torch.Size([3, 1024, 1024])
 
         self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
         self.writer.add_scalar(tag="test/SSIM", scalar_value=avg_ssim / len(self.testing_loader), global_step=epoch)
