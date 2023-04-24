@@ -23,7 +23,8 @@ class MyNetTrainer(object):
         self.GPU_IN_USE = torch.cuda.is_available()
         self.netG = None
         self.netD = None
-        self.lr = config.lr
+        self.G_lr = config.G_lr
+        self.D_lr = config.D_lr
         self.nEpochs = config.nEpochs
         self.criterionG = None
         self.criterionD = None
@@ -55,18 +56,17 @@ class MyNetTrainer(object):
             self.netG.weight_init(mean=0.0, std=0.2)
             self.criterionG = nn.MSELoss()
             self.criterionG.to('cuda:0')
-            self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.lr)
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200], gamma=0.5)  # lr decay
-            self.writer.add_graph(self.netG, input_to_model=torch.randn(16, 3, 32, 32), verbose=False)
+            self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.G_lr)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)  # lr decay
+            self.writer.add_graph(self.netG, input_to_model=torch.randn(16, 3, 32, 32).to('cuda:0'), verbose=False)
             
             # build Discriminator
             self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:1')
             self.netD.weight_init(mean=0.0, std=0.2)
             self.criterionD = nn.BCELoss()
             self.criterionD.to('cuda:1')
-            self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.lr * 0.5)
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200], gamma=0.5)  # lr decay
-            self.writer.add_graph(self.netD, input_to_model=torch.randn(16, 3, 32, 32), verbose=False)
+            self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.D_lr)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)  # lr decay
 
             # build feature extractor
             self.feature_extractor = VGG19().to('cuda:0')
@@ -179,9 +179,9 @@ class MyNetTrainer(object):
         checkpoint={
             'epoch':epoch,
             'D_state_dict':self.netD.state_dict(),
-            'G_state_dict':self.netD.state_dict(),
-            'optimize_state_dicG':self.optimizerG.state_dict(),
-            'optimize_state_dicD':self.optimizerD.state_dict(),
+            'G_state_dict':self.netG.state_dict(),
+            'optimize_state_dict_G':self.optimizerG.state_dict(),
+            'optimize_state_dict_D':self.optimizerD.state_dict(),
                     }
         checkpoints_out_path = self.model_out_path +'/checkpoints/'
         if os.path.exists(checkpoints_out_path) == False:
