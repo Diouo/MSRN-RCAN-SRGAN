@@ -175,8 +175,8 @@ class MyNetTrainer(object):
             'epoch':best_epoch,
             'D_state_dict':self.netD.state_dict(),
             'G_state_dict':self.netG.state_dict(),
-            'optimize_state_dict_G':self.optimizerG.state_dict(),
-            'optimize_state_dict_D':self.optimizerD.state_dict(),
+            'optimizeG_state_dict':self.optimizerG.state_dict(),
+            'optimizeD_state_dict':self.optimizerD.state_dict(),
             # new add, not in baseline
             'schedulerG_state_dict':self.schedulerG.state_dict(),
             'schedulerD_state_dict':self.schedulerD.state_dict(),
@@ -227,8 +227,8 @@ class MyNetTrainer(object):
         best_ssim = checkpoint['best_ssim']
         start_epoch = checkpoint['epoch'] 
         best_epoch = checkpoint['epoch'] 
-        self.optimizerG.load_state_dict(checkpoint['optimize_state_dict_G'])  
-        self.optimizerD.load_state_dict(checkpoint['optimize_state_dict_D']) 
+        self.optimizerG.load_state_dict(checkpoint['optimizeG_state_dict'])  
+        self.optimizerD.load_state_dict(checkpoint['optimizeD_state_dict']) 
 
         self.schedulerG.load_state_dict(checkpoint['schedulerG_state_dict'])  
         self.schedulerD.load_state_dict(checkpoint['schedulerD_state_dict']) 
