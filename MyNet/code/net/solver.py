@@ -29,11 +29,12 @@ class MyNetTrainer(object):
         self.criterionF= None
         self.optimizerG = None
         self.optimizerD = None
+        self.schedulerG = None
+        self.schedulerD = None
         self.feature_extractor = None
         self.training_loader = training_loader
         self.testing_loader = testing_loader
-
-        self.scheduler = None
+        
         self.model_out_path = model_out_path
         self.checkpoint = config.checkpoint
         self.writer = SummaryWriter(model_out_path + '/tensorboard')
@@ -44,22 +45,22 @@ class MyNetTrainer(object):
         if self.GPU_IN_USE:
 
             # build Generator
-            self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to('cuda:1')
+            self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to('cuda:0')
             self.netG.weight_init(mean=0.0, std=0.2)
-            self.criterionG = nn.MSELoss().to('cuda:1')
+            self.criterionG = nn.MSELoss().to('cuda:0')
             self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.G_lr)
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
-            self.writer.add_graph(self.netG, input_to_model=torch.randn(16, 3, 32, 32).to('cuda:1'), verbose=False)
+            self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
+            self.writer.add_graph(self.netG, input_to_model=torch.randn(1, 3, 32, 32).to('cuda:0'), verbose=False)
             
             # build Discriminator
-            self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:1')
+            self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:0')
             self.netD.weight_init(mean=0.0, std=0.2)
-            self.criterionD = nn.BCELoss().to('cuda:1')
+            self.criterionD = nn.BCELoss().to('cuda:0')
             self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.D_lr)
-            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
+            self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
 
             # build feature extractor
-            self.feature_extractor = VGG19().to('cuda:1')
+            self.feature_extractor = VGG19().to('cuda:0')
 
 
     def pretrain(self):
@@ -70,10 +71,10 @@ class MyNetTrainer(object):
             self.netD.train()
             self.optimizerD.zero_grad()
 
-            data = data.to('cuda:1')
-            target = target.to('cuda:1')
-            real_label = torch.ones(data.size(0), 1).to('cuda:1')
-            fake_label = torch.zeros(data.size(0), 1).to('cuda:1')
+            data = data.to('cuda:0')
+            target = target.to('cuda:0')
+            real_label = torch.ones(data.size(0), 1).to('cuda:0')
+            fake_label = torch.zeros(data.size(0), 1).to('cuda:0')
 
             d_real = self.netD(target) # prob of real samples
             d_real_loss = self.criterionD(d_real, real_label) # BCE loss of real samples
@@ -85,7 +86,6 @@ class MyNetTrainer(object):
             d_total.backward()
             self.optimizerD.step()
 
-
     def train(self,epoch):
         print('     Training')
 
@@ -96,10 +96,10 @@ class MyNetTrainer(object):
         for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
 
             # setup noise
-            data = data.to('cuda:1')
-            target = target.to('cuda:1')
-            real_label = torch.ones(data.size(0), 1).to('cuda:1')
-            fake_label = torch.zeros(data.size(0), 1).to('cuda:1')
+            data = data.to('cuda:0')
+            target = target.to('cuda:0')
+            real_label = torch.ones(data.size(0), 1).to('cuda:0')
+            fake_label = torch.zeros(data.size(0), 1).to('cuda:0')
 
             # ===========================================================
             # Train Discriminator
@@ -150,8 +150,8 @@ class MyNetTrainer(object):
 
         with torch.no_grad():
             for _, (data, target) in enumerate(self.testing_loader):
-                data = data.to('cuda:1'),
-                target = target.to('cuda:1')
+                data = data.to('cuda:0'),
+                target = target.to('cuda:0')
                 prediction = self.netG(data[0])
                 mse = self.criterionG(prediction, target)
                 avg_psnr += 10 * log10(1 / mse.item())
@@ -159,7 +159,7 @@ class MyNetTrainer(object):
         
         img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
         data = (ToTensor()(img)) 
-        data = data.to('cuda:1').unsqueeze(0) # torch.Size([1, 3, 256, 256])
+        data = data.to('cuda:0').unsqueeze(0) # torch.Size([1, 3, 256, 256])
         out = self.netG(data).detach().squeeze(0) # torch.Size([3, 1024, 1024])
 
         self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
@@ -177,6 +177,9 @@ class MyNetTrainer(object):
             'G_state_dict':self.netG.state_dict(),
             'optimize_state_dict_G':self.optimizerG.state_dict(),
             'optimize_state_dict_D':self.optimizerD.state_dict(),
+            # new add, not in baseline
+            'schedulerG_state_dict':self.schedulerG.state_dict(),
+            'schedulerD_state_dict':self.schedulerD.state_dict(),
             'best_psnr':best_psnr,
             'best_ssim':best_ssim,
                     }
@@ -199,7 +202,8 @@ class MyNetTrainer(object):
 
             self.train(epoch)
             temp_psnr, temp_ssim = self.test(epoch)
-            self.scheduler.step()
+            self.schedulerD.step()
+            self.schedulerG.step()
 
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
@@ -207,31 +211,37 @@ class MyNetTrainer(object):
                 best_epoch = epoch
                 self.save(best_psnr, best_ssim, best_epoch)
         
-        self.save(self.nEpochs)
+        self.save(best_psnr, best_ssim, self.nEpochs)
             
         return best_epoch
     
 
     def resume(self):
         print('\n===> Resuming')
-        best_psnr = 0
-        best_ssim = 0
-        best_epoch = 0
-
         self.build_model()
-        checkpoint = torch.load(self.checkpoint, map_location='cuda:1')
+
+        checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
         self.netG.load_state_dict(checkpoint['G_state_dict']) 
         self.netD.load_state_dict(checkpoint['D_state_dict']) 
-        self.optimizerG.load_state_dict(checkpoint['optimize_state_dict_G'])  
-        self.optimizerD.load_state_dict(checkpoint['optimize_state_dict_D'])  
+        best_psnr = checkpoint['best_psnr']
+        best_ssim = checkpoint['best_ssim']
         start_epoch = checkpoint['epoch'] 
+        best_epoch = checkpoint['epoch'] 
+        self.optimizerG.load_state_dict(checkpoint['optimize_state_dict_G'])  
+        self.optimizerD.load_state_dict(checkpoint['optimize_state_dict_D']) 
+
+        self.schedulerG.load_state_dict(checkpoint['schedulerG_state_dict'])  
+        self.schedulerD.load_state_dict(checkpoint['schedulerD_state_dict']) 
+        # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
+        # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
 
         for epoch in range(start_epoch + 1, start_epoch + self.nEpochs + 1):
             print("\n===> Epoch {} starts".format(epoch))
 
             self.train(epoch)
             temp_psnr, temp_ssim = self.test(epoch)
-            self.scheduler.step()
+            self.schedulerD.step()
+            self.schedulerG.step()
 
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
@@ -239,7 +249,7 @@ class MyNetTrainer(object):
                 best_epoch = epoch
                 self.save(best_psnr, best_ssim, best_epoch)
         
-        self.save(start_epoch+self.nEpochs)
+        self.save(best_psnr, best_ssim, start_epoch+self.nEpochs)
 
         return best_epoch
 

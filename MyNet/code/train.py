@@ -20,7 +20,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
 parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 
 # Ttraining mode settings
-parser.add_argument('--mode', type=str, default='resume', help='desicion of training mode, else == resume')
+parser.add_argument('--mode', type=str, default='train', help='desicion of training mode, else == resume')
 parser.add_argument('--checkpoints_out_path', type=str, default='/home/guozy/BISHE/MyNet/result/baseline')
 parser.add_argument('--checkpoint', type=str, default='/home/guozy/BISHE/MyNet/result/baseline/checkpoints/328_checkpoint.pkl')
 
@@ -31,9 +31,9 @@ parser.add_argument('--crop_size', type=int, default=256, help='crop size of the
 # hyper-parameters
 parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
 parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
-parser.add_argument('--nEpochs', type=int, default=172, help='number of epochs to train for')
+parser.add_argument('--nEpochs', type=int, default=400, help='number of epochs to train for')
 parser.add_argument('--G_lr', type=float, default=1e-5, help='Learning Rate')
-parser.add_argument('--D_lr', type=float, default=4e-6, help='Learning Rate')
+parser.add_argument('--D_lr', type=float, default=5e-6, help='Learning Rate')
 parser.add_argument('--seed', type=int, default=42, help='random seed to use')
 
 # model configuration
