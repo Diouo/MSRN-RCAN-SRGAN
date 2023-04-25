@@ -168,7 +168,7 @@ class MyNetTrainer(object):
         img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
         data = (ToTensor()(img)) 
         data = data.to('cuda:1').unsqueeze(0) # torch.Size([1, 3, 256, 256])
-        out = self.netG(data).detach().squeeze(0) * 255.0 # torch.Size([3, 1024, 1024])
+        out = self.netG(data).detach().squeeze(0) # torch.Size([3, 1024, 1024])
 
         self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
         self.writer.add_scalar(tag="test/SSIM", scalar_value=avg_ssim / len(self.testing_loader), global_step=epoch)
@@ -211,7 +211,9 @@ class MyNetTrainer(object):
                 best_ssim = temp_ssim
                 best_epoch = epoch
                 self.save(epoch)
-
+        
+        self.save(self.nEpochs + 1)
+            
         return best_epoch
     
     def resume(self):
