@@ -31,8 +31,10 @@ parser.add_argument('--crop_size', type=int, default=256, help='crop size of the
 parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
 parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
 parser.add_argument('--nEpochs', type=int, default=400, help='number of epochs to train for')
+parser.add_argument('--G_pretrain_epoch', type=int, default=10, help='Learning Rate')
+parser.add_argument('--D_pretrain_epoch', type=int, default=0, help='Learning Rate')
 parser.add_argument('--G_lr', type=float, default=1e-5, help='Learning Rate')
-parser.add_argument('--D_lr', type=float, default=5e-6, help='Learning Rate')
+parser.add_argument('--D_lr', type=float, default=2e-6, help='Learning Rate')
 parser.add_argument('--seed', type=int, default=42, help='random seed to use')
 
 # model configuration

@@ -18,6 +18,8 @@ class MyNetTrainer(object):
         self.GPU_IN_USE = torch.cuda.is_available()
         self.upscale_factor = config.upscale_factor
         self.nEpochs = config.nEpochs
+        self.G_pretrain_epoch= config.G_pretrain_epoch
+        self.D_pretrain_epoch = config.D_pretrain_epoch
         self.num_residuals = 16
 
         self.netG = None
@@ -63,18 +65,37 @@ class MyNetTrainer(object):
             self.feature_extractor = VGG19().to('cuda:0')
 
 
-    def pretrain(self):
-        print('\n===> Pretraining')
+    def G_pretrain(self):
+        print('\n===> G Pretraining')
         for _, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
 
-            self.netG.eval()
-            self.netD.train()
-            self.optimizerD.zero_grad()
+            data = data.to('cuda:0')
+            target = target.to('cuda:0')
+
+            self.netG.train()
+            self.netD.eval()
+            self.optimizerG.zero_grad()
+
+            g_real = self.netG(data) # fake samples, torch.Size([4, 3, 1024, 1024])
+            mse_loss = self.criterionG(g_real, target) # MSE loss of fake samples
+            content_loss = self.feature_extractor.forward(g_real,target) # VGG loss of fake samples
+
+            g_total = mse_loss + 0.006 * content_loss # total loss of G
+            g_total.backward()
+            self.optimizerG.step()
+
+    def D_pretrain(self):
+        print('\n===> D Pretraining')
+        for _, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
 
             data = data.to('cuda:0')
             target = target.to('cuda:0')
             real_label = torch.ones(data.size(0), 1).to('cuda:0')
             fake_label = torch.zeros(data.size(0), 1).to('cuda:0')
+
+            self.netG.eval()
+            self.netD.train()
+            self.optimizerD.zero_grad()
 
             d_real = self.netD(target) # prob of real samples
             d_real_loss = self.criterionD(d_real, real_label) # BCE loss of real samples
@@ -85,6 +106,7 @@ class MyNetTrainer(object):
             d_total =  d_real_loss + d_fake_loss  # total loss of D
             d_total.backward()
             self.optimizerD.step()
+
 
     def train(self,epoch):
         print('     Training')
@@ -196,7 +218,13 @@ class MyNetTrainer(object):
         best_epoch = 0
 
         self.build_model()
-        self.pretrain()
+
+        for epoch in range(1, self.G_pretrain_epoch + 1):
+            self.G_pretrain()
+            
+        for epoch in range(1, self.D_pretrain_epoch + 1):
+            self.D_pretrain()
+
         for epoch in range(1, self.nEpochs + 1):
             print("\n===> Epoch {} starts".format(epoch))
 
