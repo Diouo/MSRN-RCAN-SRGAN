@@ -21,7 +21,6 @@ parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 
 # Ttraining mode settings
 parser.add_argument('--mode', type=str, default='train', help='desicion of training mode, else == resume')
-parser.add_argument('--checkpoints_out_path', type=str, default='/home/guozy/BISHE/MyNet/result/baseline')
 parser.add_argument('--checkpoint', type=str, default='/home/guozy/BISHE/MyNet/result/baseline/checkpoints/328_checkpoint.pkl')
 
 # dataset settings
@@ -50,16 +49,16 @@ cudnn.benchmark = True
 
 if __name__ == '__main__':
 
+    # ===========================================================
+    # prepare for store model
+    # ===========================================================
+    now = datetime.datetime.now()
+    now = now.strftime("%Y-%m-%d_%H:%M:%S")
+    model_out_path = '/home/guozy/BISHE/MyNet/result/' + now
+    if os.path.exists(model_out_path) == False:
+            os.mkdir(model_out_path)
+
     if args.mode == 'train':
-        # ===========================================================
-        # prepare for store model
-        # ===========================================================
-        now = datetime.datetime.now()
-        now = now.strftime("%Y-%m-%d_%H:%M:%S")
-        model_out_path = '/home/guozy/BISHE/MyNet/result/' + now
-        if os.path.exists(model_out_path) == False:
-                os.mkdir(model_out_path)
-    
 
         # ===========================================================
         # To store settings information of model
@@ -109,7 +108,7 @@ if __name__ == '__main__':
         # train model
         # ===========================================================
         time_start = time.time()
-        model = MyNetTrainer(args, training_data_loader, testing_data_loader, args.checkpoints_out_path)
+        model = MyNetTrainer(args, training_data_loader, testing_data_loader, model_out_path)
         best_epoch = model.resume()
 
         # ===========================================================
