@@ -84,7 +84,7 @@ if __name__ == '__main__':
         # ===========================================================
         time_start = time.time()
         model = MyNetTrainer(args, training_data_loader, testing_data_loader, model_out_path)
-        best_epoch = model.run()
+        best_psnr, best_ssim, best_epoch = model.run()
 
         # ===========================================================
         # check how much time was used to train model
@@ -92,7 +92,8 @@ if __name__ == '__main__':
         time_end = time.time()
         print('\n===> time cost of traning:', time_end - time_start)  
         with open(model_out_path + '/information.txt', 'a') as f:
-            f.write('\nepoch:{}, training time:{}s\n\n'.format(best_epoch, time_end - time_start))
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}',best_psnr, best_ssim, best_epoch)
+            f.write('\ntraining time:{}s\n\n'.format(time_end - time_start))
             f.close()
 
 
@@ -111,7 +112,7 @@ if __name__ == '__main__':
         # ===========================================================
         time_start = time.time()
         model = MyNetTrainer(args, training_data_loader, testing_data_loader, model_out_path)
-        best_epoch = model.resume()
+        best_psnr, best_ssim, best_epoch = model.resume()
 
         # ===========================================================
         # check how much time was used to train model
@@ -119,6 +120,7 @@ if __name__ == '__main__':
         time_end = time.time()
         print('\n===> time cost of resuming:', time_end - time_start)  
         with open(args.checkpoints_out_path + '/information.txt', 'a') as f:
-            f.write('\nepoch:{}, resuming time:{}s\n\n'.format(best_epoch, time_end - time_start))
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}',best_psnr, best_ssim, best_epoch)
+            f.write('\ntraining time:{}s\n\n'.format(time_end - time_start))
             f.close()
 

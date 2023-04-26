@@ -66,7 +66,6 @@ class MyNetTrainer(object):
 
 
     def G_pretrain(self):
-        print('\n===> G Pretraining')
         for _, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
 
             data = data.to('cuda:0')
@@ -85,7 +84,6 @@ class MyNetTrainer(object):
             self.optimizerG.step()
 
     def D_pretrain(self):
-        print('\n===> D Pretraining')
         for _, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
 
             data = data.to('cuda:0')
@@ -212,17 +210,17 @@ class MyNetTrainer(object):
 
 
     def run(self):
-        print('\n===> Runing')
         best_psnr = 0
         best_ssim = 0
         best_epoch = 0
-
         self.build_model()
 
         for epoch in range(1, self.G_pretrain_epoch + 1):
+            print('\n===> G Pretraining {}'.format(epoch))
             self.G_pretrain()
             
         for epoch in range(1, self.D_pretrain_epoch + 1):
+            print('\n===> D Pretraining {}'.format(epoch))
             self.D_pretrain()
 
         for epoch in range(1, self.nEpochs + 1):
@@ -241,7 +239,7 @@ class MyNetTrainer(object):
         
         self.save(best_psnr, best_ssim, self.nEpochs)
             
-        return best_epoch
+        return best_psnr, best_ssim, best_epoch
     
 
     def resume(self):
@@ -279,5 +277,5 @@ class MyNetTrainer(object):
         
         self.save(best_psnr, best_ssim, start_epoch+self.nEpochs)
 
-        return best_epoch
+        return best_psnr, best_ssim, best_epoch
 
