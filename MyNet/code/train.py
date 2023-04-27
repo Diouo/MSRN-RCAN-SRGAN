@@ -20,7 +20,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
 parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 
 # Ttraining mode settings
-parser.add_argument('--mode', type=str, default='train', help='train/resume/pretrain')
+parser.add_argument('--mode', type=str, default='run', help='pretrain/pretrain_resume/run/run_resume')
 parser.add_argument('--weight', type=str)
 parser.add_argument('--checkpoint', type=str)
 
@@ -51,7 +51,7 @@ cudnn.benchmark = True
 
 if __name__ == '__main__':
 
-    if args.mode == 'train':
+    if args.mode == 'run':
         # ===========================================================
         # prepare for store model
         # ===========================================================
@@ -91,12 +91,12 @@ if __name__ == '__main__':
         time_end = time.time()
         print('\n===> time cost of traning:', time_end - time_start)  
         with open(model_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}',best_psnr, best_ssim, best_epoch)
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.formamt(best_psnr, best_ssim, best_epoch))
             f.write('\ntraining time:{}s\n\n'.format(time_end - time_start))
             f.close()
 
 
-    elif args.mode == 'resume':
+    elif args.mode == 'run_resume':
         # ===========================================================
         # prepare for store model
         # ===========================================================
@@ -120,7 +120,7 @@ if __name__ == '__main__':
         # ===========================================================
         time_start = time.time()
         model = MyNetTrainer(args, training_data_loader, testing_data_loader, model_out_path)
-        best_psnr, best_ssim, best_epoch = model.resume()
+        best_psnr, best_ssim, best_epoch = model.run_resume()
 
         # ===========================================================
         # check how much time was used to train model
@@ -128,9 +128,10 @@ if __name__ == '__main__':
         time_end = time.time()
         print('\n===> time cost of resuming:', time_end - time_start)  
         with open(args.checkpoints_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}',best_psnr, best_ssim, best_epoch)
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.formamt(best_psnr, best_ssim, best_epoch))
             f.write('\nresuming time:{}s\n\n'.format(time_end - time_start))
             f.close()
+
 
     elif args.mode == 'pretrain':
         # ===========================================================
@@ -161,9 +162,44 @@ if __name__ == '__main__':
         # ===========================================================
         time_end = time.time()
         print('\n===> time cost of resuming:', time_end - time_start)  
-        with open(args.checkpoints_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}',best_psnr, best_ssim, best_epoch)
+        with open(weights_out_path + '/information.txt', 'a') as f:
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.formamt(best_psnr, best_ssim, best_epoch))
             f.write('\npretraining time:{}s\n\n'.format(time_end - time_start))
+            f.close()
+
+
+    elif args.mode == 'pretrain_resume':
+        # ===========================================================
+        # prepare for store model
+        # ===========================================================
+        weights_out_path = '/home/guozy/BISHE/MyNet/result/weight'
+        if os.path.exists(weights_out_path) == False:
+            os.mkdir(weights_out_path)
+
+        # ===========================================================
+        # Set train dataset & test dataset
+        # ===========================================================
+        print('\n===> Loading datasets')
+        train_set = get_training_set(args.upscale_factor,args.crop_size, args.dataSet)
+        test_set = get_test_set(args.upscale_factor, args.crop_size, args.dataSet)
+        training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=4, pin_memory=True)
+        testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
+
+        # ===========================================================
+        # train model
+        # ===========================================================
+        time_start = time.time()
+        model = MyNetTrainer(args, training_data_loader, testing_data_loader, weights_out_path)
+        best_psnr, best_ssim, best_epoch = model.pretrain_resume()
+
+        # ===========================================================
+        # check how much time was used to train model
+        # ===========================================================
+        time_end = time.time()
+        print('\n===> time cost of pretrain resuming:', time_end - time_start)  
+        with open(weights_out_path + '/information.txt', 'a') as f:
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.formamt(best_psnr, best_ssim, best_epoch))
+            f.write('\npretrain resuming time:{}s\n\n'.format(time_end - time_start))
             f.close()
 
         
