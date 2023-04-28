@@ -207,10 +207,10 @@ class MyNetTrainer(object):
         return avg_psnr, avg_ssim
 
 
-    def save(self, best_psnr, best_ssim, best_epoch):
+    def save(self, best_psnr, best_ssim, epoch):
         print('     Saving')
         checkpoint={
-            'epoch':best_epoch,
+            'epoch':epoch,
             'D_state_dict':self.netD.state_dict(),
             'G_state_dict':self.netG.state_dict(),
             'optimizeG_state_dict':self.optimizerG.state_dict(),
@@ -224,7 +224,7 @@ class MyNetTrainer(object):
         checkpoints_out_path = self.model_out_path +'/checkpoints/'
         if os.path.exists(checkpoints_out_path) == False:
             os.mkdir(checkpoints_out_path)
-        torch.save(checkpoint, checkpoints_out_path + str(best_epoch) + '_checkpoint.pkl')
+        torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
 
     
     def pretrain(self):
@@ -326,10 +326,10 @@ class MyNetTrainer(object):
                 self.save(best_psnr, best_ssim, epoch)
 
             elif epoch % 50 == 0:
-                self.save(temp_psnr, temp_ssim, epoch)
+                self.save(best_psnr, best_ssim, epoch)
 
             elif epoch == self.nEpochs:
-                self.save(best_psnr, best_ssim, self.nEpochs)
+                self.save(best_psnr, best_ssim, epoch)
             
         return best_psnr, best_ssim, best_epoch
     
@@ -351,7 +351,7 @@ class MyNetTrainer(object):
         # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
         # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
 
-        for epoch in range(start_epoch + 1, start_epoch + self.nEpochs + 1):
+        for epoch in range(start_epoch + 1, start_epoch + 1 + self.nEpochs + 1):
             print("\n===> Resuming Epoch {} starts".format(epoch))
             if (epoch-1) % self.K == 0:
                 self.D_train(epoch)
@@ -364,13 +364,13 @@ class MyNetTrainer(object):
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
                 best_epoch = epoch
-                self.save(best_psnr, best_ssim, best_epoch)
+                self.save(best_psnr, best_ssim, epoch)
 
             elif epoch % 50 == 0:
-                self.save(temp_psnr, temp_ssim, epoch)
+                self.save(best_psnr, best_ssim, epoch)
 
             elif epoch == start_epoch + self.nEpochs:
-                self.save(best_psnr, best_ssim, self.nEpochs)
+                self.save(best_psnr, best_ssim, epoch)
 
         return best_psnr, best_ssim, best_epoch
 
