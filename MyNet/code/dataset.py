@@ -37,8 +37,8 @@ def get_training_set(upscale_factor,crop_size, dataSet='DIV2K'):
     train_dir = join(root_dir, "train")
     valid_crop_size = calculate_valid_crop_size(crop_size, upscale_factor)
 
-    return DatasetFromFolder(train_dir, 'train',
-                             augment_transform=augment_transform(valid_crop_size),
+    return DatasetFromFolder(train_dir,
+                             augment_transform=augment_transform(valid_crop_size, 'train'),
                              input_transform=input_transform(valid_crop_size, upscale_factor),
                              target_transform=target_transform(), 
                              )
@@ -50,8 +50,8 @@ def get_test_set(upscale_factor,crop_size, dataSet='DIV2K'):
     test_dir = join(root_dir, "test")
     valid_crop_size = calculate_valid_crop_size(crop_size, upscale_factor)
 
-    return DatasetFromFolder(test_dir, 'test',
-                             augment_transform=augment_transform(valid_crop_size),
+    return DatasetFromFolder(test_dir,
+                             augment_transform=augment_transform(valid_crop_size, 'test'),
                              input_transform=input_transform(valid_crop_size, upscale_factor),
                              target_transform=target_transform(),
                              )
@@ -68,25 +68,22 @@ def load_img(filepath):
 
 
 class DatasetFromFolder(data.Dataset):
-    def __init__(self, mode, image_dir,augment_transform=None, input_transform=None, target_transform=None):
+    def __init__(self, image_dir,augment_transform=None, input_transform=None, target_transform=None):
         super(DatasetFromFolder, self).__init__()
-        self.mode = mode
         self.image_filenames = [join(image_dir, x) for x in listdir(image_dir) if is_image_file(x)]
         self.augment_transform = augment_transform
         self.input_transform = input_transform
         self.target_transform = target_transform
 
-    # only random crop
     def __getitem__(self, index):
         input_image = load_img(self.image_filenames[index])
 
-        input_image = self.augment_transform(input_image, self.mode) # random crop for train; center crop for test;
+        input_image = self.augment_transform(input_image) # random crop for train; center crop for test;
         target = input_image.copy()
         input_image = self.input_transform(input_image) # resize and totensor
-        target = ToTensor(target) 
+        target = self.target_transform(target)
 
         return input_image, target # LR & HR
 
-        
     def __len__(self):
         return len(self.image_filenames)
