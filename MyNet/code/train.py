@@ -21,7 +21,6 @@ parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 
 # Ttraining mode settings
 parser.add_argument('--mode', type=str, default='run', help='pretrain/pretrain_resume/run/run_resume')
-parser.add_argument('--weight', type=str)
 parser.add_argument('--checkpoint', type=str)
 
 # dataset settings

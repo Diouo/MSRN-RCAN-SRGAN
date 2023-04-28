@@ -39,7 +39,6 @@ class MyNetTrainer(object):
         
         self.model_out_path = model_out_path
         self.checkpoint = config.checkpoint
-        self.weight = config.weight
         self.writer = SummaryWriter(self.model_out_path + '/tensorboard')
         
 
@@ -246,26 +245,26 @@ class MyNetTrainer(object):
                 best_epoch = epoch
 
                 print('     Saving')
-                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+                checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(checkpoint, self.model_out_path + '/' + str(epoch) + '_checkpoint.pkl')
 
             elif epoch % 50 == 0:
                 print('     Saving')
-                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+                checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(checkpoint, self.model_out_path + '/' + str(epoch) + '_checkpoint.pkl')
 
             elif epoch == self.G_pretrain_epoch:
                 print('     Saving')
-                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+                checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(checkpoint, self.model_out_path + '/' + str(epoch) + '_checkpoint.pkl')
 
         return best_psnr, best_ssim, best_epoch
 
 
     def pretrain_resume(self):
-        checkpoint = torch.load(self.weight, map_location='cuda:0')
+        checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
         self.build_model()
-        self.netG.load_state_dict(checkpoint['weight'])
+        self.netG.load_state_dict(checkpoint['G_state_dict'])
 
         self.schedulerG = None
 
@@ -283,25 +282,25 @@ class MyNetTrainer(object):
                 best_epoch = epoch
 
                 print('     Saving')
-                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(weight, self.model_out_path + '/' + str(best_epoch) + '_weight.pkl')
+                checkpoint = {'checkpoint':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(checkpoint, self.model_out_path + '/' + str(best_epoch) + '_checkpoint.pkl')
 
             elif epoch % 50 == 0:
                 print('     Saving')
-                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+                checkpoint = {'checkpoint':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(checkpoint, self.model_out_path + '/' + str(epoch) + '_checkpoint.pkl')
 
             elif epoch == start_epoch + 1 + self.G_pretrain_epoch:
                 print('     Saving')
-                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+                checkpoint = {'checkpoint':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(checkpoint, self.model_out_path + '/' + str(epoch) + '_checkpoint.pkl')
 
         return best_psnr, best_ssim, best_epoch
 
 
     def run(self):
         self.build_model()
-        self.netG.load_state_dict(torch.load(self.weight, map_location='cuda:0')['weight']) 
+        self.netG.load_state_dict(torch.load(self.checkpoint, map_location='cuda:0')['G_state_dict']) 
 
         # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
         # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
