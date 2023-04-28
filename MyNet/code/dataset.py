@@ -2,12 +2,20 @@ from os import listdir
 from os.path import join
 from PIL import Image
 
-from torchvision.transforms import Compose, ToTensor, Resize, RandomCrop
+from torchvision.transforms import Compose, ToTensor, Resize, RandomCrop, CenterCrop
 import torch.utils.data as data
 
 
 def calculate_valid_crop_size(crop_size, upscale_factor):
     return crop_size - (crop_size % upscale_factor)
+
+
+def augment_transform(crop_size, mode):
+
+    if mode == 'train':
+        return Compose([RandomCrop(crop_size),])
+    elif mode == 'test':
+        return Compose([CenterCrop(crop_size),])
 
 
 def input_transform(crop_size, upscale_factor):
@@ -23,22 +31,16 @@ def target_transform():
     ])
 
 
-def augment_transform(crop_size):
-    return Compose([
-        RandomCrop(crop_size),
-    ])
-
-
 def get_training_set(upscale_factor,crop_size, dataSet='DIV2K'):
 
     root_dir = "/home/guozy/BISHE/dataset/" + dataSet + "/images/"
     train_dir = join(root_dir, "train")
     valid_crop_size = calculate_valid_crop_size(crop_size, upscale_factor)
 
-    return DatasetFromFolder(train_dir,
+    return DatasetFromFolder(train_dir, 'train',
+                             augment_transform=augment_transform(valid_crop_size),
                              input_transform=input_transform(valid_crop_size, upscale_factor),
-                             target_transform=target_transform(),
-                             augment_transform=augment_transform(valid_crop_size)
+                             target_transform=target_transform(), 
                              )
 
 
@@ -48,10 +50,10 @@ def get_test_set(upscale_factor,crop_size, dataSet='DIV2K'):
     test_dir = join(root_dir, "test")
     valid_crop_size = calculate_valid_crop_size(crop_size, upscale_factor)
 
-    return DatasetFromFolder(test_dir,
+    return DatasetFromFolder(test_dir, 'test',
+                             augment_transform=augment_transform(valid_crop_size),
                              input_transform=input_transform(valid_crop_size, upscale_factor),
                              target_transform=target_transform(),
-                             augment_transform=augment_transform(valid_crop_size)
                              )
 
 
@@ -66,23 +68,25 @@ def load_img(filepath):
 
 
 class DatasetFromFolder(data.Dataset):
-    def __init__(self, image_dir, input_transform=None, target_transform=None, augment_transform=None):
+    def __init__(self, mode, image_dir,augment_transform=None, input_transform=None, target_transform=None):
         super(DatasetFromFolder, self).__init__()
+        self.mode = mode
         self.image_filenames = [join(image_dir, x) for x in listdir(image_dir) if is_image_file(x)]
+        self.augment_transform = augment_transform
         self.input_transform = input_transform
         self.target_transform = target_transform
-        self.augment_transform = augment_transform
 
     # only random crop
     def __getitem__(self, index):
         input_image = load_img(self.image_filenames[index])
 
-        input_image = self.augment_transform(input_image) # random crop
+        input_image = self.augment_transform(input_image, self.mode) # random crop for train; center crop for test;
         target = input_image.copy()
         input_image = self.input_transform(input_image) # resize and totensor
-        target = self.target_transform(target) # totensor
+        target = ToTensor(target) 
 
         return input_image, target # LR & HR
 
+        
     def __len__(self):
         return len(self.image_filenames)
