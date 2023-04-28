@@ -20,6 +20,7 @@ class MyNetTrainer(object):
         self.nEpochs = config.nEpochs
         self.G_pretrain_epoch= config.G_pretrain_epoch
         self.num_residuals = 16
+        self.K = config.K
 
         self.netG = None
         self.netD = None
@@ -60,54 +61,103 @@ class MyNetTrainer(object):
 
         # build feature extractor
         self.feature_extractor = VGG19().to('cuda:0')
+        self.feature_extractor.eval()
 
 
     def G_pretrain(self,epoch):
-        print('     Training')
+        print('     G Pretraining')
 
-        g_train_loss = 0
+        self.netG.train()
+        self.netD.eval()
+
+        g_loss = 0
+        g_mse_loss = 0
+        g_content_loss = 0
         for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
+            self.optimizerG.zero_grad()
 
             data = data.to('cuda:0')
             target = target.to('cuda:0')
-
-            self.netG.train()
-            self.netD.eval()
-            self.optimizerG.zero_grad()
 
             g_real = self.netG(data) # fake samples, torch.Size([4, 3, 1024, 1024])
             mse_loss = self.criterionG(g_real, target) # MSE loss of fake samples
             content_loss = self.feature_extractor.forward(g_real,target) # VGG loss of fake samples
 
-            g_total = mse_loss + 0.006 * content_loss # total loss of G
-            g_total.backward()
-            g_train_loss += g_total.item()
+            total_loss = mse_loss + 0.006 * content_loss # total loss of G
+            total_loss.backward()
             self.optimizerG.step()
 
-        self.writer.add_scalar(tag="train/G_loss", scalar_value=g_train_loss / (batch_num + 1), global_step=epoch)
+            g_loss += total_loss.item()
+            g_mse_loss += mse_loss.item()
+            g_content_loss += content_loss.item()
+
+        self.writer.add_scalar(tag="train/G_loss", scalar_value=g_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/G_mse_loss", scalar_value=g_mse_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/G_content_loss", scalar_value=g_content_loss / (batch_num + 1), global_step=epoch)
 
 
-    def train(self,epoch):
-        print('     Training')
+    def G_train(self, epoch):
+        print('     G Training')
 
-        self.feature_extractor.eval()
-        g_train_loss = 0
-        d_train_loss = 0
+        self.netG.train()
+        self.netD.eval()
+
+        # ===========================================================
+        # Train Generator
+        # ===========================================================
+        g_loss = 0
+        g_mse_loss = 0
+        g_gan_loss = 0
+        g_content_loss = 0
 
         for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
+            self.optimizerG.zero_grad()
 
             # setup noise
             data = data.to('cuda:0')
             target = target.to('cuda:0')
             real_label = torch.ones(data.size(0), 1).to('cuda:0')
-            fake_label = torch.zeros(data.size(0), 1).to('cuda:0')
 
-            # ===========================================================
-            # Train Discriminator
-            # ===========================================================
-            self.netG.eval()
-            self.netD.train()
+            g_real = self.netG(data) # fake samples, torch.Size([4, 3, 1024, 1024])
+            g_fake = self.netD(g_real) # prob of fake samples
+            mse_loss = self.criterionG(g_real, target) # MSE loss of fake samples
+            gan_loss = self.criterionD(g_fake, real_label) # Adversarial loss of fake samples
+            content_loss = self.feature_extractor.forward(g_real,target) # VGG loss of fake samples
+
+            total_loss = mse_loss + 1e-3 * gan_loss + 0.006 * content_loss # total loss of G
+            total_loss.backward()
+            self.optimizerG.step()
+
+            g_loss += total_loss.item()
+            g_mse_loss += mse_loss.item()
+            g_gan_loss += gan_loss.item()
+            g_content_loss += content_loss.item()
+
+        self.writer.add_scalar(tag="train/G_loss", scalar_value=g_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/G_mse_loss", scalar_value=g_mse_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/G_gan_loss", scalar_value=g_gan_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/G_content_loss", scalar_value=g_content_loss / (batch_num + 1), global_step=epoch)
+
+
+    def D_train(self,epoch):
+        print('     D Training')
+        
+        self.netG.eval()
+        self.netD.train()
+        
+        # ===========================================================
+        # Train Discriminator
+        # ===========================================================
+        d_loss = 0
+        d_real_total = 0
+        d_fake_total = 0
+        for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
             self.optimizerD.zero_grad()
+
+            data = data.to('cuda:0')
+            target = target.to('cuda:0')
+            real_label = torch.ones(data.size(0), 1).to('cuda:0')
+            fake_label = torch.zeros(data.size(0), 1).to('cuda:0')
 
             d_real = self.netD(target) # prob of real samples
             d_real_loss = self.criterionD(d_real, real_label) # BCE loss of real samples
@@ -117,38 +167,25 @@ class MyNetTrainer(object):
 
             d_total =  d_real_loss + d_fake_loss  # total loss of D
             d_total.backward()
-            d_train_loss += d_total.item()
             self.optimizerD.step()
 
-            # ===========================================================
-            # Train Generator
-            # ===========================================================
-            self.netG.train()
-            self.netD.eval()
-            self.optimizerG.zero_grad()
-
-            g_real = self.netG(data) # fake samples, torch.Size([4, 3, 1024, 1024])
-            g_fake = self.netD(g_real) # prob of fake samples
-            gan_loss = self.criterionD(g_fake, real_label) # Adversarial loss of fake samples
-            mse_loss = self.criterionG(g_real, target) # MSE loss of fake samples
-            content_loss = self.feature_extractor.forward(g_real,target) # VGG loss of fake samples
-
-            g_total = mse_loss + 1e-3 * gan_loss + 0.006 * content_loss # total loss of G
-            g_train_loss += g_total.item()
-            g_total.backward()
-            self.optimizerG.step()
+            d_loss += d_total.item()
+            d_real_total += d_real_loss.item()
+            d_fake_total += d_fake_loss.item()
             
-        self.writer.add_scalar(tag="train/G_loss", scalar_value=g_train_loss / (batch_num + 1), global_step=epoch)
-        self.writer.add_scalar(tag="train/D_loss", scalar_value=d_train_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/D_loss", scalar_value=d_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/D_real_loss", scalar_value=d_real_total / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/D_fake_loss", scalar_value=d_fake_total / (batch_num + 1), global_step=epoch)
 
 
     def test(self,epoch):
         print('     Testing')
 
         self.netG.eval()
+        self.netD.eval()
+
         avg_psnr = 0
         avg_ssim = 0
-
         with torch.no_grad():
             for _, (data, target) in enumerate(self.testing_loader):
                 data = data.to('cuda:0'),
@@ -179,8 +216,8 @@ class MyNetTrainer(object):
             'optimizeG_state_dict':self.optimizerG.state_dict(),
             'optimizeD_state_dict':self.optimizerD.state_dict(),
             # new add, not in baseline
-            'schedulerG_state_dict':self.schedulerG.state_dict(),
-            'schedulerD_state_dict':self.schedulerD.state_dict(),
+            # 'schedulerG_state_dict':self.schedulerG.state_dict(),
+            # 'schedulerD_state_dict':self.schedulerD.state_dict(),
             'best_psnr':best_psnr,
             'best_ssim':best_ssim,
                     }
@@ -191,17 +228,18 @@ class MyNetTrainer(object):
 
     
     def pretrain(self):
-        best_psnr = 0
-        best_ssim = 0
-        best_epoch = 0
         self.build_model()
 
         self.schedulerG = None
 
+        best_psnr = 0
+        best_ssim = 0
+        best_epoch = 0   
         for epoch in range(1, self.G_pretrain_epoch + 1):
             print('\n===> G Pretraining Epoch {} starts'.format(epoch))
             self.G_pretrain(epoch)
             temp_psnr, temp_ssim = self.test(epoch)
+
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
@@ -209,25 +247,32 @@ class MyNetTrainer(object):
 
                 print('     Saving')
                 weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(weight, self.model_out_path + '/' + str(best_epoch) + '_weight.pkl')
-                
-        print('     Saving')
-        weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-        torch.save(weight, self.model_out_path + '/' + str(self.G_pretrain_epoch) + '_weight.pkl')
+                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+
+            elif epoch % 50 == 0:
+                print('     Saving')
+                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+
+            elif epoch == self.G_pretrain_epoch:
+                print('     Saving')
+                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+
         return best_psnr, best_ssim, best_epoch
 
 
     def pretrain_resume(self):
+        checkpoint = torch.load(self.weight, map_location='cuda:0')
         self.build_model()
+        self.netG.load_state_dict(checkpoint['weight'])
 
         self.schedulerG = None
-        checkpoint = torch.load(self.weight, map_location='cuda:0')
-        self.netG.load_state_dict(checkpoint['weight'])
+
         best_psnr = checkpoint['best_psnr']
         best_ssim = checkpoint['best_ssim']
         start_epoch = checkpoint['epoch'] 
         best_epoch = checkpoint['epoch'] 
-
         for epoch in range(start_epoch + 1, start_epoch + 1 + self.G_pretrain_epoch + 1):
             print('\n===> G Pretraining Epoch {} starts'.format(epoch))
             self.G_pretrain(epoch)
@@ -240,46 +285,58 @@ class MyNetTrainer(object):
                 print('     Saving')
                 weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
                 torch.save(weight, self.model_out_path + '/' + str(best_epoch) + '_weight.pkl')
-                
-        print('     Saving')
-        weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-        torch.save(weight, self.model_out_path + '/' + str(400+self.G_pretrain_epoch) + '_weight.pkl')
+
+            elif epoch % 50 == 0:
+                print('     Saving')
+                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+
+            elif epoch == start_epoch + 1 + self.G_pretrain_epoch:
+                print('     Saving')
+                weight = {'weight':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
+                torch.save(weight, self.model_out_path + '/' + str(epoch) + '_weight.pkl')
+
         return best_psnr, best_ssim, best_epoch
 
 
     def run(self):
+        self.build_model()
+        self.netG.load_state_dict(torch.load(self.weight, map_location='cuda:0')['weight']) 
+
+        # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
+        # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
+
         best_psnr = 0
         best_ssim = 0
         best_epoch = 0
-        self.build_model()
-        
-        self.netG.load_state_dict(torch.load(self.weight, map_location='cuda:0')['weight']) 
-        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
-        self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
-        
         for epoch in range(1, self.nEpochs + 1):
             print("\n===> Running Epoch {} starts".format(epoch))
-            self.G_pretrain()
-            self.train(epoch)
+            if (epoch-1) % self.K == 0:
+                self.D_train(epoch)
+            self.G_train(epoch)
             temp_psnr, temp_ssim = self.test(epoch)
-            self.schedulerD.step()
-            self.schedulerG.step()
+
+            # self.schedulerD.step()
+            # self.schedulerG.step()
 
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
                 best_epoch = epoch
-                self.save(best_psnr, best_ssim, best_epoch)
-        
-        self.save(best_psnr, best_ssim, self.nEpochs)
+                self.save(best_psnr, best_ssim, epoch)
+
+            elif epoch % 50 == 0:
+                self.save(temp_psnr, temp_ssim, epoch)
+
+            elif epoch == self.nEpochs:
+                self.save(best_psnr, best_ssim, self.nEpochs)
             
         return best_psnr, best_ssim, best_epoch
     
 
     def run_resume(self):
-        self.build_model()
-
         checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
+        self.build_model()
         self.netG.load_state_dict(checkpoint['G_state_dict']) 
         self.netD.load_state_dict(checkpoint['D_state_dict']) 
         best_psnr = checkpoint['best_psnr']
@@ -289,26 +346,31 @@ class MyNetTrainer(object):
         self.optimizerG.load_state_dict(checkpoint['optimizeG_state_dict'])  
         self.optimizerD.load_state_dict(checkpoint['optimizeD_state_dict']) 
 
-        self.schedulerG.load_state_dict(checkpoint['schedulerG_state_dict'])  
-        self.schedulerD.load_state_dict(checkpoint['schedulerD_state_dict']) 
+        # self.schedulerG.load_state_dict(checkpoint['schedulerG_state_dict'])  
+        # self.schedulerD.load_state_dict(checkpoint['schedulerD_state_dict']) 
         # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
         # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
 
         for epoch in range(start_epoch + 1, start_epoch + self.nEpochs + 1):
             print("\n===> Resuming Epoch {} starts".format(epoch))
-
-            self.train(epoch)
+            if (epoch-1) % self.K == 0:
+                self.D_train(epoch)
+            self.G_train(epoch)
             temp_psnr, temp_ssim = self.test(epoch)
-            self.schedulerD.step()
-            self.schedulerG.step()
+            # self.schedulerD.step()
+            # self.schedulerG.step()
 
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
                 best_epoch = epoch
                 self.save(best_psnr, best_ssim, best_epoch)
-        
-        self.save(best_psnr, best_ssim, start_epoch+self.nEpochs)
+
+            elif epoch % 50 == 0:
+                self.save(temp_psnr, temp_ssim, epoch)
+
+            elif epoch == start_epoch + self.nEpochs:
+                self.save(best_psnr, best_ssim, self.nEpochs)
 
         return best_psnr, best_ssim, best_epoch
 
