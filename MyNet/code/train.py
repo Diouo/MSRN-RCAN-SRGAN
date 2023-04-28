@@ -29,6 +29,7 @@ parser.add_argument('--dataSet', type=str, default='DIV2K', help='desicion of da
 parser.add_argument('--crop_size', type=int, default=256, help='crop size of the sample')
 
 # hyper-parameters
+parser.add_argument('--K', type=int, default=5, help='alternatively training G and D')
 parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
 parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
 parser.add_argument('--nEpochs', type=int, default=400, help='number of epochs to train for')
@@ -91,7 +92,7 @@ if __name__ == '__main__':
         time_end = time.time()
         print('\n===> time cost of traning:', time_end - time_start)  
         with open(model_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.formamt(best_psnr, best_ssim, best_epoch))
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
             f.write('\ntraining time:{}s\n\n'.format(time_end - time_start))
             f.close()
 
@@ -128,7 +129,7 @@ if __name__ == '__main__':
         time_end = time.time()
         print('\n===> time cost of resuming:', time_end - time_start)  
         with open(args.checkpoints_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.formamt(best_psnr, best_ssim, best_epoch))
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
             f.write('\nresuming time:{}s\n\n'.format(time_end - time_start))
             f.close()
 
@@ -163,7 +164,7 @@ if __name__ == '__main__':
         time_end = time.time()
         print('\n===> time cost of resuming:', time_end - time_start)  
         with open(weights_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.formamt(best_psnr, best_ssim, best_epoch))
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
             f.write('\npretraining time:{}s\n\n'.format(time_end - time_start))
             f.close()
 
@@ -198,7 +199,7 @@ if __name__ == '__main__':
         time_end = time.time()
         print('\n===> time cost of pretrain resuming:', time_end - time_start)  
         with open(weights_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.formamt(best_psnr, best_ssim, best_epoch))
+            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
             f.write('\npretrain resuming time:{}s\n\n'.format(time_end - time_start))
             f.close()
 
