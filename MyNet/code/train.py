@@ -25,16 +25,18 @@ parser.add_argument('--checkpoint', type=str)
 
 # dataset settings
 parser.add_argument('--dataSet', type=str, default='DIV2K', help='desicion of dataset')
-parser.add_argument('--crop_size', type=int, default=256, help='crop size of the sample')
+parser.add_argument('--train_crop_size', type=int, default=96, help='crop size of the sample')
+parser.add_argument('--test_crop_size', type=int, default=192, help='crop size of the sample')
 
 # hyper-parameters
+parser.add_argument('--num_residuals', type=int, default=16)
 parser.add_argument('--K', type=int, default=5, help='alternatively training G and D')
 parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
 parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
 parser.add_argument('--nEpochs', type=int, default=400, help='number of epochs to train for')
 parser.add_argument('--G_pretrain_epoch', type=int, default=400)
-parser.add_argument('--G_lr', type=float, default=1e-5, help='Learning Rate')
-parser.add_argument('--D_lr', type=float, default=2e-6, help='Learning Rate')
+parser.add_argument('--G_lr', type=float, default=1e-4, help='Learning Rate')
+parser.add_argument('--D_lr', type=float, default=1e-4, help='Learning Rate')
 parser.add_argument('--seed', type=int, default=42, help='random seed to use')
 
 # model configuration
@@ -73,8 +75,8 @@ if __name__ == '__main__':
         # Set train dataset & test dataset
         # ===========================================================
         print('\n===> Loading datasets')
-        train_set = get_training_set(args.upscale_factor,args.crop_size, args.dataSet)
-        test_set = get_test_set(args.upscale_factor, args.crop_size, args.dataSet)
+        train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
+        test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
         training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=4, pin_memory=True)
         testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
 
@@ -110,8 +112,8 @@ if __name__ == '__main__':
         # Set train dataset & test dataset
         # ===========================================================
         print('\n===> Loading datasets')
-        train_set = get_training_set(args.upscale_factor,args.crop_size, args.dataSet)
-        test_set = get_test_set(args.upscale_factor, args.crop_size, args.dataSet)
+        train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
+        test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
         training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=4, pin_memory=True)
         testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
 
@@ -145,8 +147,8 @@ if __name__ == '__main__':
         # Set train dataset & test dataset
         # ===========================================================
         print('\n===> Loading datasets')
-        train_set = get_training_set(args.upscale_factor,args.crop_size, args.dataSet)
-        test_set = get_test_set(args.upscale_factor, args.crop_size, args.dataSet)
+        train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
+        test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
         training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=4, pin_memory=True)
         testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
 
@@ -180,9 +182,9 @@ if __name__ == '__main__':
         # Set train dataset & test dataset
         # ===========================================================
         print('\n===> Loading datasets')
-        train_set = get_training_set(args.upscale_factor,args.crop_size, args.dataSet)
-        test_set = get_test_set(args.upscale_factor, args.crop_size, args.dataSet)
-        training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=4, pin_memory=True)
+        train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
+        test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
+        training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=8, pin_memory=True)
         testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
 
         # ===========================================================
