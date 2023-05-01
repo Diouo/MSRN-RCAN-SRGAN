@@ -47,14 +47,14 @@ class MyNetTrainer(object):
 
         # build Generator
         self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to('cuda:0')
-        self.netG.weight_init(mean=0.0, std=0.2)
+        # self.netG.weight_init(mean=0.0, std=0.2)
         self.criterionG = nn.MSELoss().to('cuda:0')
         self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.G_lr)
-        self.writer.add_graph(self.netG, input_to_model=torch.randn(1, 3, 32, 32).to('cuda:0'), verbose=False)
+        self.writer.add_graph(self.netG, input_to_model=torch.randn(1, 3, 128, 128).to('cuda:0'), verbose=False)
         
         # build Discriminator
         self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:0')
-        self.netD.weight_init(mean=0.0, std=0.2)
+        # self.netD.weight_init(mean=0.0, std=0.2)
         self.criterionD = nn.BCELoss().to('cuda:0')
         self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.D_lr)
 
@@ -187,8 +187,9 @@ class MyNetTrainer(object):
         img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
         data = (ToTensor()(img)) 
         data = data.to('cuda:0').unsqueeze(0) # torch.Size([1, 3, 256, 256])
-        out = self.netG(data).detach().squeeze(0) # torch.Size([3, 1024, 1024])
+        out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
 
+        print('     psnr:{}, ssim:{}'.format(avg_psnr, avg_ssim))
         self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
         self.writer.add_scalar(tag="test/SSIM", scalar_value=avg_ssim / len(self.testing_loader), global_step=epoch)
         self.writer.add_image("test/IMAGE", out, epoch, dataformats='CHW')
@@ -219,7 +220,7 @@ class MyNetTrainer(object):
     def pretrain(self):
         self.build_model()
 
-        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200], gamma=0.5)
+        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[100, 200, 300, 400, 500], gamma=0.5)
 
         best_psnr = 0
         best_ssim = 0
@@ -257,7 +258,8 @@ class MyNetTrainer(object):
         checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
         self.netG.load_state_dict(checkpoint['G_state_dict'])
 
-        self.schedulerG = None
+        self.optimizerG = optim.Adam([{'params': self.netG.parameters(), 'initial_lr': self.G_lr}], lr=self.G_lr)
+        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[200, 400, 600, 800], gamma=0.5, last_epoch= 500)
 
         best_psnr = checkpoint['best_psnr']
         best_ssim = checkpoint['best_ssim']

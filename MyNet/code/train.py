@@ -25,8 +25,8 @@ parser.add_argument('--checkpoint', type=str)
 
 # dataset settings
 parser.add_argument('--dataSet', type=str, default='DIV2K', help='desicion of dataset')
-parser.add_argument('--train_crop_size', type=int, default=96, help='crop size of the sample')
-parser.add_argument('--test_crop_size', type=int, default=192, help='crop size of the sample')
+parser.add_argument('--train_crop_size', type=int, default=128, help='crop size of the sample')
+parser.add_argument('--test_crop_size', type=int, default=256, help='crop size of the sample')
 
 # hyper-parameters
 parser.add_argument('--num_residuals', type=int, default=16)
@@ -53,156 +53,53 @@ cudnn.benchmark = True
 
 if __name__ == '__main__':
 
+    # ===========================================================
+    # prepare for store model
+    # ===========================================================
+    now = datetime.datetime.now()
+    now = now.strftime("%Y-%m-%d_%H:%M:%S")
+    model_out_path = '/home/guozy/BISHE/MyNet/result/' + now
+    if os.path.exists(model_out_path) == False:
+            os.mkdir(model_out_path)
+
+    # ===========================================================
+    # To store settings information of model
+    # ===========================================================
+    argsDict = args.__dict__
+    with open(model_out_path + '/information.txt', 'w') as f:
+        for eachArg, value in argsDict.items():
+            f.writelines(eachArg + ' : ' + str(value) + '\n')
+
+    # ===========================================================
+    # Set train dataset & test dataset
+    # ===========================================================
+    print('\n===> Loading datasets')
+    train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
+    test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
+    training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=8, pin_memory=True)
+    testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
+
+    # ===========================================================
+    # train model
+    # ===========================================================
+    time_start = time.time()
+    model = MyNetTrainer(args, training_data_loader, testing_data_loader, model_out_path)
     if args.mode == 'run':
-        # ===========================================================
-        # prepare for store model
-        # ===========================================================
-        now = datetime.datetime.now()
-        now = now.strftime("%Y-%m-%d_%H:%M:%S")
-        model_out_path = '/home/guozy/BISHE/MyNet/result/' + now
-        if os.path.exists(model_out_path) == False:
-                os.mkdir(model_out_path)
-
-        # ===========================================================
-        # To store settings information of model
-        # ===========================================================
-        argsDict = args.__dict__
-        with open(model_out_path + '/information.txt', 'w') as f:
-            for eachArg, value in argsDict.items():
-                f.writelines(eachArg + ' : ' + str(value) + '\n')
-
-        # ===========================================================
-        # Set train dataset & test dataset
-        # ===========================================================
-        print('\n===> Loading datasets')
-        train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
-        test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
-        training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=4, pin_memory=True)
-        testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
-
-        # ===========================================================
-        # train model
-        # ===========================================================
-        time_start = time.time()
-        model = MyNetTrainer(args, training_data_loader, testing_data_loader, model_out_path)
         best_psnr, best_ssim, best_epoch = model.run()
-
-        # ===========================================================
-        # check how much time was used to train model
-        # ===========================================================
-        time_end = time.time()
-        print('\n===> time cost of traning:', time_end - time_start)  
-        with open(model_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
-            f.write('\ntraining time:{}s\n\n'.format(time_end - time_start))
-            f.close()
-
-
     elif args.mode == 'run_resume':
-        # ===========================================================
-        # prepare for store model
-        # ===========================================================
-        now = datetime.datetime.now()
-        now = now.strftime("%Y-%m-%d_%H:%M:%S")
-        model_out_path = '/home/guozy/BISHE/MyNet/result/' + now
-        if os.path.exists(model_out_path) == False:
-                os.mkdir(model_out_path)
-
-        # ===========================================================
-        # Set train dataset & test dataset
-        # ===========================================================
-        print('\n===> Loading datasets')
-        train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
-        test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
-        training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=4, pin_memory=True)
-        testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
-
-        # ===========================================================
-        # train model
-        # ===========================================================
-        time_start = time.time()
-        model = MyNetTrainer(args, training_data_loader, testing_data_loader, model_out_path)
         best_psnr, best_ssim, best_epoch = model.run_resume()
-
-        # ===========================================================
-        # check how much time was used to train model
-        # ===========================================================
-        time_end = time.time()
-        print('\n===> time cost of resuming:', time_end - time_start)  
-        with open(args.checkpoints_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
-            f.write('\nresuming time:{}s\n\n'.format(time_end - time_start))
-            f.close()
-
-
     elif args.mode == 'pretrain':
-        # ===========================================================
-        # prepare for store model
-        # ===========================================================
-        weights_out_path = '/home/guozy/BISHE/MyNet/result/weight'
-        if os.path.exists(weights_out_path) == False:
-            os.mkdir(weights_out_path)
-
-        # ===========================================================
-        # Set train dataset & test dataset
-        # ===========================================================
-        print('\n===> Loading datasets')
-        train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
-        test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
-        training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=4, pin_memory=True)
-        testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
-
-        # ===========================================================
-        # train model
-        # ===========================================================
-        time_start = time.time()
-        model = MyNetTrainer(args, training_data_loader, testing_data_loader, weights_out_path)
         best_psnr, best_ssim, best_epoch = model.pretrain()
-
-        # ===========================================================
-        # check how much time was used to train model
-        # ===========================================================
-        time_end = time.time()
-        print('\n===> time cost of resuming:', time_end - time_start)  
-        with open(weights_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
-            f.write('\npretraining time:{}s\n\n'.format(time_end - time_start))
-            f.close()
-
-
     elif args.mode == 'pretrain_resume':
-        # ===========================================================
-        # prepare for store model
-        # ===========================================================
-        weights_out_path = '/home/guozy/BISHE/MyNet/result/weight'
-        if os.path.exists(weights_out_path) == False:
-            os.mkdir(weights_out_path)
-
-        # ===========================================================
-        # Set train dataset & test dataset
-        # ===========================================================
-        print('\n===> Loading datasets')
-        train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
-        test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
-        training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=8, pin_memory=True)
-        testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
-
-        # ===========================================================
-        # train model
-        # ===========================================================
-        time_start = time.time()
-        model = MyNetTrainer(args, training_data_loader, testing_data_loader, weights_out_path)
         best_psnr, best_ssim, best_epoch = model.pretrain_resume()
-
-        # ===========================================================
-        # check how much time was used to train model
-        # ===========================================================
-        time_end = time.time()
-        print('\n===> time cost of pretrain resuming:', time_end - time_start)  
-        with open(weights_out_path + '/information.txt', 'a') as f:
-            f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
-            f.write('\npretrain resuming time:{}s\n\n'.format(time_end - time_start))
-            f.close()
-
-        
-
+         
+    # ===========================================================
+    # check how much time was used to train model
+    # ===========================================================
+    time_end = time.time()
+    print('\n===> best_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
+    print('\n===> time cost:{}s'.format( time_end - time_start))  
+    with open(model_out_path + '/information.txt', 'a') as f:
+        f.write('\nbest_psnr:{}, best_ssim:{}, best_epoch:{}'.format(best_psnr, best_ssim, best_epoch))
+        f.write('\ntime cost:{}s\n\n'.format(time_end - time_start))
+        f.close()
