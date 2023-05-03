@@ -2,20 +2,26 @@ from os import listdir
 from os.path import join
 from PIL import Image
 import random
-import torchvision.transforms.functional as ttf
 from typing import Sequence
 
 import torch
 from torchvision.transforms import Compose, ToTensor, Resize, RandomCrop, CenterCrop, RandomHorizontalFlip, RandomVerticalFlip
 import torch.utils.data as data
+from torchvision.utils import _log_api_usage_once
+import torchvision.transforms.functional as ttf
 
-class MyRotateTransform:
+class MyRotateTransform(torch.nn.Module):
     def __init__(self, angles: Sequence[int]):
+        super().__init__()
+        _log_api_usage_once(self)
         self.angles = angles
 
-    def __call__(self, x):
+    def forward(self, img):
         angle = random.choice(self.angles)
-        return torch.rot90(x, angle, dims=[2, 3])
+        return ttf.rotate(img, angle * 90)
+    
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(angles={self.angles})"
 
 
 def calculate_valid_crop_size(crop_size, upscale_factor):
