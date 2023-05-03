@@ -1,9 +1,21 @@
 from os import listdir
 from os.path import join
 from PIL import Image
+import random
+import torchvision.transforms.functional as ttf
+from typing import Sequence
 
-from torchvision.transforms import Compose, ToTensor, Resize, RandomCrop, CenterCrop
+import torch
+from torchvision.transforms import Compose, ToTensor, Resize, RandomCrop, CenterCrop, RandomHorizontalFlip, RandomVerticalFlip
 import torch.utils.data as data
+
+class MyRotateTransform:
+    def __init__(self, angles: Sequence[int]):
+        self.angles = angles
+
+    def __call__(self, x):
+        angle = random.choice(self.angles)
+        return torch.rot90(x, angle, dims=[2, 3])
 
 
 def calculate_valid_crop_size(crop_size, upscale_factor):
@@ -13,7 +25,7 @@ def calculate_valid_crop_size(crop_size, upscale_factor):
 def augment_transform(crop_size, mode):
 
     if mode == 'train':
-        return Compose([RandomCrop(crop_size),])
+        return Compose([RandomCrop(crop_size), RandomHorizontalFlip(0.5), RandomVerticalFlip(0.5), MyRotateTransform([0,1,2,3])])
     elif mode == 'test':
         return Compose([CenterCrop(crop_size),])
 
