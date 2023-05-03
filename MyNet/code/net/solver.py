@@ -83,6 +83,7 @@ class MyNetTrainer(object):
             g_loss += mse_loss.item()
 
         self.writer.add_scalar(tag="train/G_loss", scalar_value=g_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/G_lr", scalar_value=self.optimizerG.state_dict()['param_groups'][0]['lr'], global_step=epoch)
 
 
     def G_train(self, epoch):
@@ -126,6 +127,7 @@ class MyNetTrainer(object):
         self.writer.add_scalar(tag="train/G_mse_loss", scalar_value=g_mse_loss / (batch_num + 1), global_step=epoch)
         self.writer.add_scalar(tag="train/G_gan_loss", scalar_value=1e-3 * g_gan_loss / (batch_num + 1), global_step=epoch)
         self.writer.add_scalar(tag="train/G_content_loss", scalar_value=0.006 * g_content_loss / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/G_lr", scalar_value=self.optimizerG.state_dict()['param_groups'][0]['lr'], global_step=epoch)
 
 
     def D_train(self,epoch):
@@ -165,6 +167,7 @@ class MyNetTrainer(object):
         self.writer.add_scalar(tag="train/D_loss", scalar_value=d_loss / (batch_num + 1), global_step=epoch)
         self.writer.add_scalar(tag="train/D_real_loss", scalar_value=d_real_total / (batch_num + 1), global_step=epoch)
         self.writer.add_scalar(tag="train/D_fake_loss", scalar_value=d_fake_total / (batch_num + 1), global_step=epoch)
+        self.writer.add_scalar(tag="train/D_lr", scalar_value=self.optimizerD.state_dict()['param_groups'][0]['lr'], global_step=epoch)
 
 
     def test(self,epoch):
@@ -259,7 +262,7 @@ class MyNetTrainer(object):
         self.netG.load_state_dict(checkpoint['G_state_dict'])
 
         self.optimizerG = optim.Adam([{'params': self.netG.parameters(), 'initial_lr': self.G_lr}], lr=self.G_lr)
-        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[200, 400, 600, 800], gamma=0.5, last_epoch= 500)
+        # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[200, 400, 600, 800], gamma=0.5, last_epoch= 500)
 
         best_psnr = checkpoint['best_psnr']
         best_ssim = checkpoint['best_ssim']
