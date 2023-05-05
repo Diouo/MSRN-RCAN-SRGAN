@@ -24,7 +24,8 @@ parser.add_argument('--mode', type=str, default='run', help='pretrain/pretrain_r
 parser.add_argument('--checkpoint', type=str)
 
 # dataset settings
-parser.add_argument('--dataSet', type=str, default='DIV2K', help='desicion of dataset')
+parser.add_argument('--train_dataset', type=str, default='DIV2K', help='desicion of dataset')
+parser.add_argument('--test_dataset', type=str, default='DIV2K', help='desicion of dataset')
 parser.add_argument('--train_crop_size', type=int, default=128, help='crop size of the sample')
 parser.add_argument('--test_crop_size', type=int, default=256, help='crop size of the sample')
 
@@ -74,8 +75,8 @@ if __name__ == '__main__':
     # Set train dataset & test dataset
     # ===========================================================
     print('\n===> Loading datasets')
-    train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.dataSet)
-    test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.dataSet)
+    train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.train_dataset)
+    test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.test_dataset)
     training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=8, pin_memory=True)
     testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
 

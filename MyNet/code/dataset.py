@@ -64,8 +64,12 @@ def get_training_set(upscale_factor,crop_size, dataSet='DIV2K'):
 
 def get_test_set(upscale_factor,crop_size, dataSet='DIV2K'):
 
-    root_dir = "/home/guozy/BISHE/dataset/" + dataSet + "/images/"
-    test_dir = join(root_dir, "test")
+    if dataSet == 'DIV2K':
+        root_dir = "/home/guozy/BISHE/dataset/" + dataSet + "/images/"
+        test_dir = join(root_dir, "test")
+    elif dataSet == 'BSD100':
+        test_dir = '/home/guozy/BISHE/dataset/BSD100/'
+    
     valid_crop_size = calculate_valid_crop_size(crop_size, upscale_factor)
 
     return DatasetFromFolder(test_dir,
