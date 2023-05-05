@@ -38,7 +38,7 @@ def augment_transform(crop_size, mode):
 
 def input_transform(crop_size, upscale_factor):
     return Compose([
-        Resize(crop_size // upscale_factor),
+        Resize(crop_size // upscale_factor, interpolation = ttf.InterpolationMode.BICUBIC),
         ToTensor(),
     ])
 
