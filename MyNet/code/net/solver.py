@@ -9,26 +9,37 @@ from skimage.color import rgb2ycbcr
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
 from torch.utils.tensorboard import SummaryWriter
 
 from net.model import Generator, Discriminator, VGG19
+import sys
+sys.path.append("/home/guozy/BISHE/MyNet/code")
+from dataset import get_training_set, get_test_set
 
 
 class MyNetTrainer(object):
-    def __init__(self, config, training_loader, testing_loader, model_out_path):
+    def __init__(self, config, model_out_path):
         super(MyNetTrainer, self).__init__()
-        self.GPU_IN_USE = torch.cuda.is_available()
+
+        self.train_crop_size = config.train_crop_size
+        self.train_dataset = config.train_dataset
+        self.batchSize = config.batchSize
+        self.test_crop_size = config.test_crop_size
+        self.test_dataset = config.test_dataset
+        self.testBatchSize = config.testBatchSize
+
         self.upscale_factor = config.upscale_factor
         self.nEpochs = config.nEpochs
         self.G_pretrain_epoch= config.G_pretrain_epoch
         self.num_residuals = config.num_residuals
         self.K = config.K
+        self.G_lr = config.G_lr
+        self.D_lr = config.D_lr
 
         self.netG = None
         self.netD = None
-        self.G_lr = config.G_lr
-        self.D_lr = config.D_lr
         self.criterionG = None
         self.criterionD = None
         self.criterionF= None
@@ -37,8 +48,8 @@ class MyNetTrainer(object):
         self.schedulerG = None
         self.schedulerD = None
         self.feature_extractor = None
-        self.training_loader = training_loader
-        self.testing_loader = testing_loader
+        self.training_loader = None
+        self.testing_loader = None
         
         self.model_out_path = model_out_path
         self.checkpoint = config.checkpoint
@@ -64,6 +75,17 @@ class MyNetTrainer(object):
         # build feature extractor
         self.feature_extractor = VGG19().to('cuda:0')
         self.feature_extractor.eval()
+
+
+    def get_dataset(self):
+        print('\n===> Loading datasets')
+
+        train_set = get_training_set(self.upscale_factor,self.train_crop_size, self.train_dataset)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True)
+        test_set = get_test_set(self.upscale_factor, self.test_crop_size, self.test_dataset)
+        test_sampler = torch.utils.data.distributed.DistributedSampler(test_set, shuffle=False)
+        self.training_loader = DataLoader(dataset=train_set, batch_size=self.batchSize, num_workers=8, pin_memory=True, sampler=train_sampler)
+        self.testing_loader = DataLoader(dataset=test_set, batch_size=self.testBatchSize, num_workers=4, pin_memory=True, sampler=test_sampler)
 
 
     def G_pretrain(self,epoch):
@@ -260,11 +282,12 @@ class MyNetTrainer(object):
     
     def pretrain(self):
         self.build_model()
+        self.get_dataset()
         checkpoints_out_path = self.model_out_path +'/checkpoints/'
         if os.path.exists(checkpoints_out_path) == False:
             os.mkdir(checkpoints_out_path)
 
-        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[200, 500, 1000, 1500], gamma=0.5)
+        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[400,800,1200,1600], gamma=0.5)
 
         best_psnr = 0
         best_ssim = 0
@@ -273,7 +296,7 @@ class MyNetTrainer(object):
             print('\n===> G Pretraining Epoch {} starts'.format(epoch))
             self.G_pretrain(epoch)
             self.schedulerG.step()
-            temp_psnr, temp_ssim = self.test(epoch)
+            temp_psnr, temp_ssim = self.test_Y(epoch)
 
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
@@ -299,26 +322,26 @@ class MyNetTrainer(object):
 
     def pretrain_resume(self):
         self.build_model()
+        self.get_dataset()
+        checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
         checkpoints_out_path = self.model_out_path +'/checkpoints/'
         if os.path.exists(checkpoints_out_path) == False:
             os.mkdir(checkpoints_out_path)
+        
+        # self.netG.load_state_dict(checkpoint, strict = False)
+        # best_psnr = 0
+        # best_ssim = 0
+        # start_epoch = 0
+        # best_epoch = 0
 
-        checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
-        # self.netG.load_state_dict(checkpoint['G_state_dict'])
-        self.netG.load_state_dict(checkpoint, strict = False)
+        self.netG.load_state_dict(checkpoint['G_state_dict'])
+        best_psnr = checkpoint['best_psnr']
+        best_ssim = checkpoint['best_ssim']
+        start_epoch = checkpoint['epoch'] 
+        best_epoch = checkpoint['epoch'] 
 
-        self.optimizerG = optim.Adam([{'params': self.netG.parameters(), 'initial_lr': self.G_lr}], lr=self.G_lr)
-        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[500], gamma=0.1)
-
-        # best_psnr = checkpoint['best_psnr']
-        # best_ssim = checkpoint['best_ssim']
-        # start_epoch = checkpoint['epoch'] 
-        # best_epoch = checkpoint['epoch'] 
-
-        best_psnr = 0
-        best_ssim = 0
-        start_epoch = 0
-        best_epoch = 0
+        self.optimizerG = optim.Adam([{'params': filter(lambda p: p.requires_grad, self.netG.parameters()), 'initial_lr': self.G_lr}], lr=self.G_lr)
+        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[400,800,1200,1600], gamma=0.5, last_epoch=start_epoch)
 
         # temp_psnr, temp_ssim = self.test(start_epoch)
         temp_psnr, temp_ssim = self.test_Y(start_epoch)
@@ -352,6 +375,7 @@ class MyNetTrainer(object):
 
     def run(self):
         self.build_model()
+        self.get_dataset()
         self.netG.load_state_dict(torch.load(self.checkpoint, map_location='cuda:0')['G_state_dict']) 
 
         # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
@@ -386,8 +410,9 @@ class MyNetTrainer(object):
     
 
     def run_resume(self):
-        checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
         self.build_model()
+        self.get_dataset()
+        checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
         self.netG.load_state_dict(checkpoint['G_state_dict']) 
         self.netD.load_state_dict(checkpoint['D_state_dict']) 
         best_psnr = checkpoint['best_psnr']
@@ -397,8 +422,6 @@ class MyNetTrainer(object):
         self.optimizerG.load_state_dict(checkpoint['optimizeG_state_dict'])  
         self.optimizerD.load_state_dict(checkpoint['optimizeD_state_dict']) 
 
-        # self.schedulerG.load_state_dict(checkpoint['schedulerG_state_dict'])  
-        # self.schedulerD.load_state_dict(checkpoint['schedulerD_state_dict']) 
         # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
         # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
 
