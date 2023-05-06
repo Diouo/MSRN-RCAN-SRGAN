@@ -7,10 +7,8 @@ import argparse
 
 import torch
 import torch.backends.cudnn as cudnn
-from torch.utils.data import DataLoader
 
 from net.solver import MyNetTrainer
-from dataset import get_training_set, get_test_set
 
 
 # ===========================================================
@@ -30,7 +28,7 @@ parser.add_argument('--train_crop_size', type=int, default=128, help='crop size 
 parser.add_argument('--test_crop_size', type=int, default=256, help='crop size of the sample')
 
 # hyper-parameters
-parser.add_argument('--num_residuals', type=int, default=16)
+parser.add_argument('--num_residuals', type=int, default=23)
 parser.add_argument('--K', type=int, default=5, help='alternatively training G and D')
 parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
 parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
@@ -45,6 +43,7 @@ parser.add_argument('--upscale_factor', '-uf',  type=int, default=4, help="only 
 args = parser.parse_args()
 
 # set the random number seed
+os.environ['CUDA_VISIBLE_DEVICES'] = "0,1"
 np.random.seed(args.seed)
 random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -72,19 +71,10 @@ if __name__ == '__main__':
             f.writelines(eachArg + ' : ' + str(value) + '\n')
 
     # ===========================================================
-    # Set train dataset & test dataset
-    # ===========================================================
-    print('\n===> Loading datasets')
-    train_set = get_training_set(args.upscale_factor,args.train_crop_size, args.train_dataset)
-    test_set = get_test_set(args.upscale_factor, args.test_crop_size, args.test_dataset)
-    training_data_loader = DataLoader(dataset=train_set, batch_size=args.batchSize, shuffle=True, num_workers=8, pin_memory=True)
-    testing_data_loader = DataLoader(dataset=test_set, batch_size=args.testBatchSize, shuffle=False, num_workers=4, pin_memory=True)
-
-    # ===========================================================
     # train model
     # ===========================================================
     time_start = time.time()
-    model = MyNetTrainer(args, training_data_loader, testing_data_loader, model_out_path)
+    model = MyNetTrainer(args, model_out_path)
     if args.mode == 'run':
         best_psnr, best_ssim, best_epoch = model.run()
     elif args.mode == 'run_resume':
