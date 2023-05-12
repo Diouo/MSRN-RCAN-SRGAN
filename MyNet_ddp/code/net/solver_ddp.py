@@ -96,7 +96,7 @@ class MyNetTrainer(object):
 
         # build RGB2Y
         self.rgb2y = RGB2Y().to(self.local_rank)
-        self.rgb2y.load_state_dict(torch.load('/home/guozy/BISHE/MyNet/result/collect/RGB2Y.pkl'))
+        self.rgb2y.load_state_dict(torch.load('/home/guozy/BISHE/OtherNet/RGB2Y.pkl'))
         for model_parameters in self.rgb2y.parameters():
             model_parameters.requires_grad = False
         self.rgb2y.eval()
@@ -508,7 +508,8 @@ class MyNetTrainer(object):
             if self.local_rank == 0:
                 print("\n=== >Persuming Running Epoch {} starts".format(epoch))
             dist.barrier()
-            if (epoch-1) % self.K == 0:
+            # if (epoch-1) % self.K == 0:
+            for i in range(self.K):
                 self.D_train(epoch)
             dist.barrier()
             self.G_train(epoch)

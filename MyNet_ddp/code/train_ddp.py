@@ -19,6 +19,7 @@ parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 # Ttraining mode settings
 parser.add_argument('--mode', type=str, default='run', help='pretrain/pretrain_resume/run/run_resume')
 parser.add_argument('--checkpoint', type=str)
+parser.add_argument('--model_out_path', type=str, default=None)
 parser.add_argument("--local_rank", default=-1, type=int)
 
 # dataset settings
@@ -46,14 +47,20 @@ def main():
     # ===========================================================
     # prepare for store model
     # ===========================================================
-    now = datetime.datetime.now()
-    now = now.strftime("%Y-%m-%d_%H:%M:%S")
-    model_out_path = '/home/guozy/BISHE/MyNet_ddp/result/' + now
-    if os.path.exists(model_out_path) == False:
-            os.mkdir(model_out_path)
-    checkpoints_out_path = model_out_path +'/checkpoints/'
-    if os.path.exists(checkpoints_out_path) == False:
-        os.mkdir(checkpoints_out_path)
+    if args.model_out_path is None:
+        now = datetime.datetime.now()
+        now = now.strftime("%Y-%m-%d_%H:%M:%S")
+        model_out_path = '/home/guozy/BISHE/MyNet_ddp/result/' + now
+        if os.path.exists(model_out_path) == False:
+                os.mkdir(model_out_path)
+
+        checkpoints_out_path = model_out_path +'/checkpoints/'
+        if os.path.exists(checkpoints_out_path) == False:
+            os.mkdir(checkpoints_out_path)
+
+    else:
+        model_out_path = args.model_out_path
+        checkpoints_out_path = model_out_path +'/checkpoints/'
 
     # ===========================================================
     # To store settings information of model

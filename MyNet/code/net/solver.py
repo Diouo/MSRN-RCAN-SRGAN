@@ -78,7 +78,7 @@ class MyNetTrainer(object):
 
         # build RGB2Y
         self.rgb2y = RGB2Y().to(self.device)
-        self.rgb2y.load_state_dict(torch.load('/home/guozy/BISHE/MyNet/result/collect/RGB2Y.pkl'))
+        self.rgb2y.load_state_dict(torch.load('/home/guozy/BISHE/OtherNet/RGB2Y.pkl'))
         for model_parameters in self.rgb2y.parameters():
             model_parameters.requires_grad = False
         self.rgb2y.eval()
