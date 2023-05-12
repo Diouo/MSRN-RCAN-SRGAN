@@ -3,8 +3,6 @@ import numpy as np
 from math import log10
 from PIL import Image
 from skimage.metrics import structural_similarity as ssim
-from skimage.metrics import mean_squared_error as MSE
-from skimage.color import rgb2ycbcr
 
 import torch
 import torch.nn as nn
@@ -13,10 +11,10 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
 from torch.utils.tensorboard import SummaryWriter
 
-from net.model import Generator, Discriminator, VGG19
 import sys
 sys.path.append("/home/guozy/BISHE/MyNet/code")
 from dataset import get_training_set, get_test_set
+from net.model import Generator, Discriminator, VGG19, RGB2Y
 
 
 class MyNetTrainer(object):
@@ -48,9 +46,11 @@ class MyNetTrainer(object):
         self.schedulerG = None
         self.schedulerD = None
         self.feature_extractor = None
+        self.RGB2Y = None
         self.training_loader = None
         self.testing_loader = None
         
+        self.device = 'cuda:1'
         self.model_out_path = model_out_path
         self.checkpoint = config.checkpoint
         self.writer = SummaryWriter(self.model_out_path + '/tensorboard')
@@ -60,32 +60,38 @@ class MyNetTrainer(object):
         print('\n===> Building the Model')
 
         # build Generator
-        self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to('cuda:0')
+        self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to(self.device)
         # self.netG.weight_init(mean=0.0, std=0.2)
-        self.criterionG = nn.MSELoss().to('cuda:0')
+        self.criterionG = nn.MSELoss().to(self.device)
         self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.G_lr)
-        self.writer.add_graph(self.netG, input_to_model=torch.randn(1, 3, 128, 128).to('cuda:0'), verbose=False)
+        self.writer.add_graph(self.netG, input_to_model=torch.randn(1, 3, 128, 128).to(self.device), verbose=False)
         
         # build Discriminator
-        self.netD = Discriminator(base_filter=64, num_channel=3).to('cuda:0')
+        self.netD = Discriminator(base_filter=64, num_channel=3).to(self.device)
         # self.netD.weight_init(mean=0.0, std=0.2)
-        self.criterionD = nn.BCELoss().to('cuda:0')
+        self.criterionD = nn.BCELoss().to(self.device)
         self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.D_lr)
 
         # build feature extractor
-        self.feature_extractor = VGG19().to('cuda:0')
+        self.feature_extractor = VGG19().to(self.device)
         self.feature_extractor.eval()
+
+        # build RGB2Y
+        self.rgb2y = RGB2Y().to(self.device)
+        self.rgb2y.load_state_dict(torch.load('/home/guozy/BISHE/MyNet/result/collect/RGB2Y.pkl'))
+        for model_parameters in self.rgb2y.parameters():
+            model_parameters.requires_grad = False
+        self.rgb2y.eval()
 
 
     def get_dataset(self):
         print('\n===> Loading datasets')
 
         train_set = get_training_set(self.upscale_factor,self.train_crop_size, self.train_dataset)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True)
         test_set = get_test_set(self.upscale_factor, self.test_crop_size, self.test_dataset)
-        test_sampler = torch.utils.data.distributed.DistributedSampler(test_set, shuffle=False)
-        self.training_loader = DataLoader(dataset=train_set, batch_size=self.batchSize, num_workers=8, pin_memory=True, sampler=train_sampler)
-        self.testing_loader = DataLoader(dataset=test_set, batch_size=self.testBatchSize, num_workers=4, pin_memory=True, sampler=test_sampler)
+
+        self.training_loader = DataLoader(dataset=train_set, batch_size=self.batchSize, num_workers=8, pin_memory=True, shuffle=True)
+        self.testing_loader = DataLoader(dataset=test_set, batch_size=self.testBatchSize, num_workers=4, pin_memory=True, shuffle=False)
 
 
     def G_pretrain(self,epoch):
@@ -96,8 +102,8 @@ class MyNetTrainer(object):
 
         g_loss = 0 # only mse loss
         for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
-            data = data.to('cuda:0')
-            target = target.to('cuda:0')
+            data = data.to(self.device)
+            target = target.to(self.device)
 
             self.optimizerG.zero_grad()
             g_real = self.netG(data) # fake samples, torch.Size([4, 3, 1024, 1024])
@@ -128,9 +134,9 @@ class MyNetTrainer(object):
             self.optimizerG.zero_grad()
 
             # setup noise
-            data = data.to('cuda:0')
-            target = target.to('cuda:0')
-            real_label = torch.ones(data.size(0), 1).to('cuda:0')
+            data = data.to(self.device)
+            target = target.to(self.device)
+            real_label = torch.ones(data.size(0), 1).to(self.device)
 
             g_real = self.netG(data) # fake samples, torch.Size([4, 3, 1024, 1024])
             g_fake = self.netD(g_real) # prob of fake samples
@@ -169,19 +175,22 @@ class MyNetTrainer(object):
         for batch_num, (data, target) in enumerate(self.training_loader): # torch.Size([4, 3, 64, 64]), torch.Size([4, 3, 256, 256])
             self.optimizerD.zero_grad()
 
-            data = data.to('cuda:0')
-            target = target.to('cuda:0')
-            real_label = torch.ones(data.size(0), 1).to('cuda:0')
-            fake_label = torch.zeros(data.size(0), 1).to('cuda:0')
+            data = data.to(self.device)
+            target = target.to(self.device)
+            real_label = torch.ones(data.size(0), 1).to(self.device)
+            fake_label = torch.zeros(data.size(0), 1).to(self.device)
 
             d_real = self.netD(target) # prob of real samples
             d_real_loss = self.criterionD(d_real, real_label) # BCE loss of real samples
+            if d_real_loss.item() > 0.4:
+                d_real_loss.backward()
 
             d_fake = self.netD(self.netG(data)) # prob of fake samples
             d_fake_loss = self.criterionD(d_fake, fake_label) # BCE loss of fake samples
+            if d_fake_loss.item() > 0.4:
+                d_fake_loss.backward()
 
             d_total =  d_real_loss + d_fake_loss  # total loss of D
-            d_total.backward()
             self.optimizerD.step()
 
             d_loss += d_total.item()
@@ -204,8 +213,8 @@ class MyNetTrainer(object):
         avg_ssim = 0
         with torch.no_grad():
             for _, (data, target) in enumerate(self.testing_loader):
-                data = data.to('cuda:0'),
-                target = target.to('cuda:0')
+                data = data.to(self.device),
+                target = target.to(self.device)
                 prediction = self.netG(data[0]).clamp(0,1)
                 mse = self.criterionG(prediction, target)
                 avg_psnr += 10 * log10(1 / mse.item())
@@ -213,7 +222,7 @@ class MyNetTrainer(object):
         
         img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
         data = (ToTensor()(img)) 
-        data = data.to('cuda:0').unsqueeze(0) # torch.Size([1, 3, 256, 256])
+        data = data.to(self.device).unsqueeze(0) # torch.Size([1, 3, 256, 256])
         out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
 
         print('     psnr:{}, ssim:{}'.format(avg_psnr/ len(self.testing_loader), avg_ssim/ len(self.testing_loader)))
@@ -234,22 +243,20 @@ class MyNetTrainer(object):
         avg_ssim = 0
         with torch.no_grad():
             for _, (data, target) in enumerate(self.testing_loader):
-                data = data.to('cuda:0'),
-                target = target.to('cuda:0')
-                prediction = self.netG(data[0]).clamp(0,1)
+                data = data.to(self.device),
+                target = target.to(self.device).mul(255.0)
+                prediction = self.netG(data[0]).clamp(0,1).mul(255.0)
 
-                prediction = prediction.squeeze(dim=0).permute(1,2,0).cpu().numpy().astype(np.float32)
-                prediction = rgb2ycbcr(prediction)[:,:,0]
-                target = target.squeeze(dim=0).permute(1,2,0).cpu().numpy().astype(np.float32)
-                target = rgb2ycbcr(target)[:,:,0]
+                target = self.rgb2y(target)
+                prediction = self.rgb2y(prediction)
+                mse = self.criterionG(target, prediction)
 
-                mse = MSE(prediction, target)
                 avg_psnr += 10 * log10(255 * 255 / mse)
-                avg_ssim += ssim(prediction.astype(np.uint8), target.astype(np.uint8), channel_axis=0) 
+                avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy().astype(np.uint8), target.squeeze(dim=0).cpu().numpy().astype(np.uint8), channel_axis=0) 
         
         img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
         data = (ToTensor()(img)) 
-        data = data.to('cuda:0').unsqueeze(0) # torch.Size([1, 3, 256, 256])
+        data = data.to(self.device).unsqueeze(0) # torch.Size([1, 3, 256, 256])
         out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
 
         print('     psnr:{}, ssim:{}'.format(avg_psnr/ len(self.testing_loader), avg_ssim/ len(self.testing_loader)))
@@ -323,7 +330,7 @@ class MyNetTrainer(object):
     def pretrain_resume(self):
         self.build_model()
         self.get_dataset()
-        checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
+        checkpoint = torch.load(self.checkpoint, map_location=self.device)
         checkpoints_out_path = self.model_out_path +'/checkpoints/'
         if os.path.exists(checkpoints_out_path) == False:
             os.mkdir(checkpoints_out_path)
@@ -341,7 +348,7 @@ class MyNetTrainer(object):
         best_epoch = checkpoint['epoch'] 
 
         self.optimizerG = optim.Adam([{'params': filter(lambda p: p.requires_grad, self.netG.parameters()), 'initial_lr': self.G_lr}], lr=self.G_lr)
-        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[400,800,1200,1600], gamma=0.5, last_epoch=start_epoch)
+        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[452,800,1200,1600], gamma=0.5, last_epoch=start_epoch)
 
         # temp_psnr, temp_ssim = self.test(start_epoch)
         temp_psnr, temp_ssim = self.test_Y(start_epoch)
@@ -376,7 +383,7 @@ class MyNetTrainer(object):
     def run(self):
         self.build_model()
         self.get_dataset()
-        self.netG.load_state_dict(torch.load(self.checkpoint, map_location='cuda:0')['G_state_dict']) 
+        self.netG.load_state_dict(torch.load(self.checkpoint, map_location=self.device)['G_state_dict']) 
 
         # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
         # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
@@ -412,9 +419,20 @@ class MyNetTrainer(object):
     def run_resume(self):
         self.build_model()
         self.get_dataset()
-        checkpoint = torch.load(self.checkpoint, map_location='cuda:0')
-        self.netG.load_state_dict(checkpoint['G_state_dict']) 
-        self.netD.load_state_dict(checkpoint['D_state_dict']) 
+        checkpoint = torch.load(self.checkpoint, map_location=self.device)
+
+        weights_dict = {}
+        for k, v in checkpoint['G_state_dict'].items():
+            new_k =  k[7:]
+            weights_dict[new_k] = v
+        self.netG.load_state_dict(weights_dict)
+
+        weights_dict = {}
+        for k, v in checkpoint['D_state_dict'].items():
+            new_k = k[7:]
+            weights_dict[new_k] = v
+        self.netD.load_state_dict(weights_dict)
+
         best_psnr = checkpoint['best_psnr']
         best_ssim = checkpoint['best_ssim']
         start_epoch = checkpoint['epoch'] 

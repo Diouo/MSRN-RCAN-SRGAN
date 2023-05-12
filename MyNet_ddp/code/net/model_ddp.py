@@ -168,6 +168,7 @@ class Discriminator(nn.Module):
             elif isinstance(module, nn.BatchNorm2d):
                 nn.init.constant_(module.weight, 1)
 
+
 class VGG19(nn.Module):
     def __init__(
             self,
