@@ -85,6 +85,7 @@ def get_test_set(upscale_factor,crop_size, dataSet='DIV2K'):
                              )
 
 
+
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in [".png", ".jpg", ".jpeg"])
 

@@ -8,7 +8,7 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 
-from net.solver import MyNetTrainer
+from net.solver_ddp import MyNetTrainer
 
 
 # ===========================================================
@@ -19,10 +19,11 @@ parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 # Ttraining mode settings
 parser.add_argument('--mode', type=str, default='run', help='pretrain/pretrain_resume/run/run_resume')
 parser.add_argument('--checkpoint', type=str)
+parser.add_argument("--local_rank", default=-1, type=int)
 
 # dataset settings
 parser.add_argument('--train_dataset', type=str, default='DIV2K', help='desicion of dataset')
-parser.add_argument('--test_dataset', type=str, default='BSD100', help='desicion of dataset')
+parser.add_argument('--test_dataset', type=str, default='DIV2K', help='desicion of dataset')
 parser.add_argument('--train_crop_size', type=int, default=128, help='crop size of the sample')
 parser.add_argument('--test_crop_size', type=int, default=256, help='crop size of the sample')
 
@@ -47,9 +48,12 @@ def main():
     # ===========================================================
     now = datetime.datetime.now()
     now = now.strftime("%Y-%m-%d_%H:%M:%S")
-    model_out_path = '/home/guozy/BISHE/MyNet/result/' + now
+    model_out_path = '/home/guozy/BISHE/MyNet_ddp/result/' + now
     if os.path.exists(model_out_path) == False:
             os.mkdir(model_out_path)
+    checkpoints_out_path = model_out_path +'/checkpoints/'
+    if os.path.exists(checkpoints_out_path) == False:
+        os.mkdir(checkpoints_out_path)
 
     # ===========================================================
     # To store settings information of model
