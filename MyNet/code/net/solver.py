@@ -50,7 +50,7 @@ class MyNetTrainer(object):
         self.training_loader = None
         self.testing_loader = None
         
-        self.device = 'cuda:1'
+        self.device = 'cuda:0'
         self.model_out_path = model_out_path
         self.checkpoint = config.checkpoint
         self.writer = SummaryWriter(self.model_out_path + '/tensorboard')
@@ -220,7 +220,8 @@ class MyNetTrainer(object):
                 avg_psnr += 10 * log10(1 / mse.item())
                 avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy(), target.squeeze(dim=0).cpu().numpy(), channel_axis=0) 
         
-        img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
+        img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
+        img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
         data = (ToTensor()(img)) 
         data = data.to(self.device).unsqueeze(0) # torch.Size([1, 3, 256, 256])
         out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
@@ -254,7 +255,8 @@ class MyNetTrainer(object):
                 avg_psnr += 10 * log10(255 * 255 / mse)
                 avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy().astype(np.uint8), target.squeeze(dim=0).cpu().numpy().astype(np.uint8), channel_axis=0) 
         
-        img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
+        img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
+        img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
         data = (ToTensor()(img)) 
         data = data.to(self.device).unsqueeze(0) # torch.Size([1, 3, 256, 256])
         out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
@@ -282,8 +284,6 @@ class MyNetTrainer(object):
             'best_ssim':best_ssim,
                     }
         checkpoints_out_path = self.model_out_path +'/checkpoints/'
-        if os.path.exists(checkpoints_out_path) == False:
-            os.mkdir(checkpoints_out_path)
         torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
     
     
@@ -303,8 +303,8 @@ class MyNetTrainer(object):
             print('\n===> G Pretraining Epoch {} starts'.format(epoch))
             self.G_pretrain(epoch)
             self.schedulerG.step()
-            temp_psnr, temp_ssim = self.test_Y(epoch)
 
+            temp_psnr, temp_ssim = self.test_Y(epoch)
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
@@ -314,12 +314,7 @@ class MyNetTrainer(object):
                 checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
                 torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
 
-            elif epoch % 50 == 0:
-                print('     Saving')
-                checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
-
-            elif epoch == self.G_pretrain_epoch:
+            elif epoch % 50 == 0 or epoch == self.G_pretrain_epoch:
                 print('     Saving')
                 checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
                 torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
@@ -367,12 +362,7 @@ class MyNetTrainer(object):
                 checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
                 torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
 
-            elif epoch % 50 == 0:
-                print('     Saving')
-                checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
-
-            elif epoch == start_epoch + 1 + self.G_pretrain_epoch:
+            elif epoch % 50 == 0 or epoch == start_epoch + 1 + self.G_pretrain_epoch:
                 print('     Saving')
                 checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
                 torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
@@ -407,10 +397,7 @@ class MyNetTrainer(object):
                 best_epoch = epoch
                 self.save(best_psnr, best_ssim, epoch)
 
-            elif epoch % 50 == 0:
-                self.save(best_psnr, best_ssim, epoch)
-
-            elif epoch == self.nEpochs:
+            elif epoch % 50 == 0 or epoch == self.nEpochs:
                 self.save(best_psnr, best_ssim, epoch)
             
         return best_psnr, best_ssim, best_epoch
@@ -458,10 +445,7 @@ class MyNetTrainer(object):
                 best_epoch = epoch
                 self.save(best_psnr, best_ssim, epoch)
 
-            elif epoch % 50 == 0:
-                self.save(best_psnr, best_ssim, epoch)
-
-            elif epoch == start_epoch + self.nEpochs:
+            elif epoch % 50 == 0 or epoch == start_epoch + self.nEpochs:
                 self.save(best_psnr, best_ssim, epoch)
 
         return best_psnr, best_ssim, best_epoch
