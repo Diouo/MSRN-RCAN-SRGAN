@@ -8,11 +8,12 @@ train_ddp.py \
 --mode run_resume \
 --test_dataset 'BSD100' \
 --K 2 \
---nEpochs 6001 \
+--nEpochs 5500 \
 --G_lr 1e-5 \
 --D_lr 1e-5 \
 --train_crop_size 128 \
 --test_crop_size 320 \
---checkpoint '/home/guozy/BISHE/MyNet_ddp/result/GAN/checkpoints/4000_checkpoint.pkl' \
+--batchSize 16 \
+--checkpoint '/home/guozy/BISHE/MyNet_ddp/result/GAN/checkpoints/4750_checkpoint.pkl' \
 --model_out_path '/home/guozy/BISHE/MyNet_ddp/result/GAN' \
 >> nohup.out 2>&1 &

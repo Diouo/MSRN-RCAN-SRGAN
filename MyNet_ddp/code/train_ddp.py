@@ -110,5 +110,8 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = "0,1"
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
+
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = True
     
     main()

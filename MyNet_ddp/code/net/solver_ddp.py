@@ -208,25 +208,23 @@ class MyNetTrainer(object):
 
             d_real = self.netD(target) # prob of real samples
             d_real_loss = self.criterionD(d_real, real_label) # BCE loss of real samples
-            temp = d_real_loss.clone()
+            temp = d_real_loss.detach()
             dist.all_reduce(temp, op=dist.ReduceOp.SUM)
             if (temp / self.world_size) > 0.4:
                 d_real_loss.backward()
 
             d_fake = self.netD(self.netG(data)) # prob of fake samples
             d_fake_loss = self.criterionD(d_fake, fake_label) # BCE loss of fake samples
-            temp = d_fake_loss.clone()
+            temp = d_fake_loss.detach()
             dist.all_reduce(temp, op=dist.ReduceOp.SUM)
             if (temp / self.world_size) > 0.4:
                 d_fake_loss.backward()
 
-            d_total =  d_real_loss + d_fake_loss  # total loss of D
             self.optimizerD.step()
 
-            dist.all_reduce(d_total, op=dist.ReduceOp.SUM)
             dist.all_reduce(d_real_loss, op=dist.ReduceOp.SUM)
             dist.all_reduce(d_fake_loss, op=dist.ReduceOp.SUM)
-            d_loss += d_total / self.world_size
+            d_loss += d_real_loss / self.world_size + d_fake_loss / self.world_size
             d_real_total += d_real_loss / self.world_size
             d_fake_total += d_fake_loss / self.world_size
             
@@ -254,7 +252,8 @@ class MyNetTrainer(object):
                 avg_psnr += 10 * log10(1 / mse.item())
                 avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy(), target.squeeze(dim=0).cpu().numpy(), channel_axis=0) 
         
-        img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
+        img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
+        img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
         data = (ToTensor()(img)) 
         data = data.to('cuda:0').unsqueeze(0) # torch.Size([1, 3, 256, 256])
         out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
@@ -288,7 +287,8 @@ class MyNetTrainer(object):
                 avg_psnr += 10 * log10(255 * 255 / mse)
                 avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy().astype(np.uint8), target.squeeze(dim=0).cpu().numpy().astype(np.uint8), channel_axis=0) 
         
-        img = Image.open('/home/guozy/BISHE/dataset/Set5/butterfly.png')
+        img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
+        img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
         data = (ToTensor()(img)) 
         data = data.to(self.local_rank).unsqueeze(0) # torch.Size([1, 3, 256, 256])
         out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
@@ -353,15 +353,11 @@ class MyNetTrainer(object):
                     checkpoint = {'G_state_dict':self.netG.module.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
                     torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
 
-                elif epoch % 50 == 0:
+                elif epoch % 50 == 0 or epoch == self.G_pretrain_epoch:
                     print('     Saving')
                     checkpoint = {'G_state_dict':self.netG.module.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
                     torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
 
-                elif epoch == self.G_pretrain_epoch:
-                    print('     Saving')
-                    checkpoint = {'G_state_dict':self.netG.module.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                    torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
 
         return best_psnr, best_ssim, best_epoch
 
@@ -408,12 +404,7 @@ class MyNetTrainer(object):
                     checkpoint = {'G_state_dict':self.netG.module.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
                     torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
 
-                elif epoch % 50 == 0:
-                    print('     Saving')
-                    checkpoint = {'G_state_dict':self.netG.module.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                    torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
-
-                elif epoch == start_epoch + 1 + self.G_pretrain_epoch:
+                elif epoch % 50 == 0 or epoch == start_epoch + 1 + self.G_pretrain_epoch:
                     print('     Saving')
                     checkpoint = {'G_state_dict':self.netG.module.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
                     torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
@@ -460,10 +451,7 @@ class MyNetTrainer(object):
                     best_epoch = epoch
                     self.save(best_psnr, best_ssim, epoch)
 
-                elif epoch % 50 == 0:
-                    self.save(best_psnr, best_ssim, epoch)
-
-                elif epoch == self.nEpochs:
+                elif epoch % 50 == 0 or epoch == self.nEpochs:
                     self.save(best_psnr, best_ssim, epoch)
             
         return best_psnr, best_ssim, best_epoch
@@ -474,22 +462,8 @@ class MyNetTrainer(object):
         self.get_dataset()
         checkpoint = torch.load(self.checkpoint, map_location='cuda:{}'.format(self.local_rank))
 
-        # weights_dict = {}
-        # for k, v in checkpoint['G_state_dict'].items():
-        #     new_k =  k[7:]
-        #     weights_dict[new_k] = v
-        # self.netG.load_state_dict(weights_dict)
         self.netG.load_state_dict(checkpoint['G_state_dict'])
-
-        # weights_dict = {}
-        # for k, v in checkpoint['D_state_dict'].items():
-        #     new_k = k[7:]
-        #     weights_dict[new_k] = v
-        # self.netD.load_state_dict(checkpoint['D_state_dict'])
         self.netD.load_state_dict(checkpoint['D_state_dict'])
-
-
-
         best_psnr = checkpoint['best_psnr']
         best_ssim = checkpoint['best_ssim']
         start_epoch = checkpoint['epoch'] 
@@ -508,9 +482,10 @@ class MyNetTrainer(object):
             if self.local_rank == 0:
                 print("\n=== >Persuming Running Epoch {} starts".format(epoch))
             dist.barrier()
-            # if (epoch-1) % self.K == 0:
+            
             for i in range(self.K):
                 self.D_train(epoch)
+                torch.cuda.empty_cache()
             dist.barrier()
             self.G_train(epoch)
             # self.schedulerD.step()
@@ -525,11 +500,9 @@ class MyNetTrainer(object):
                     best_epoch = epoch
                     self.save(best_psnr, best_ssim, epoch)
 
-                elif epoch % 50 == 0:
+                elif epoch % 50 == 0 or  epoch == self.nEpochs:
                     self.save(best_psnr, best_ssim, epoch)
 
-                elif epoch == self.nEpochs:
-                    self.save(best_psnr, best_ssim, epoch)
             
         return best_psnr, best_ssim, best_epoch
 
