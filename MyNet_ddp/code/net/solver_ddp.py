@@ -208,14 +208,14 @@ class MyNetTrainer(object):
 
             d_real = self.netD(target) # prob of real samples
             d_real_loss = self.criterionD(d_real, real_label) # BCE loss of real samples
-            temp = d_real_loss.detach()
+            temp = d_real_loss.clone()
             dist.all_reduce(temp, op=dist.ReduceOp.SUM)
             if (temp / self.world_size) > 0.4:
                 d_real_loss.backward()
 
             d_fake = self.netD(self.netG(data)) # prob of fake samples
             d_fake_loss = self.criterionD(d_fake, fake_label) # BCE loss of fake samples
-            temp = d_fake_loss.detach()
+            temp = d_fake_loss.clone()
             dist.all_reduce(temp, op=dist.ReduceOp.SUM)
             if (temp / self.world_size) > 0.4:
                 d_fake_loss.backward()
@@ -229,9 +229,9 @@ class MyNetTrainer(object):
             d_fake_total += d_fake_loss / self.world_size
             
         if self.local_rank == 0:
-            self.writer.add_scalar(tag="train/D_loss", scalar_value=d_loss / (batch_num + 1), global_step=epoch)
-            self.writer.add_scalar(tag="train/D_real_loss", scalar_value=d_real_total / (batch_num + 1), global_step=epoch)
-            self.writer.add_scalar(tag="train/D_fake_loss", scalar_value=d_fake_total / (batch_num + 1), global_step=epoch)
+            self.writer.add_scalar(tag="train/D_loss", scalar_value=d_loss / (batch_num + 1) , global_step=epoch)
+            self.writer.add_scalar(tag="train/D_real_loss", scalar_value=d_real_total / (batch_num + 1) , global_step=epoch)
+            self.writer.add_scalar(tag="train/D_fake_loss", scalar_value=d_fake_total / (batch_num + 1) , global_step=epoch)
             self.writer.add_scalar(tag="train/D_lr", scalar_value=self.optimizerD.state_dict()['param_groups'][0]['lr'], global_step=epoch)
 
 
@@ -482,10 +482,7 @@ class MyNetTrainer(object):
             if self.local_rank == 0:
                 print("\n=== >Persuming Running Epoch {} starts".format(epoch))
             dist.barrier()
-            
-            for i in range(self.K):
-                self.D_train(epoch)
-                torch.cuda.empty_cache()
+            self.D_train(epoch)
             dist.barrier()
             self.G_train(epoch)
             # self.schedulerD.step()
