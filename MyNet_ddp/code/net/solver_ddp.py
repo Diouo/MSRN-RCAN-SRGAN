@@ -290,7 +290,7 @@ class MyNetTrainer(object):
                 mse = self.criterionG(target, prediction)
 
                 avg_psnr += 10 * log10(255 * 255 / mse)
-                avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy().astype(np.uint8), target.squeeze(dim=0).cpu().numpy().astype(np.uint8), channel_axis=0) 
+                avg_ssim += self.ssim(prediction.round(), target.round()) 
         
         img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
         img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
