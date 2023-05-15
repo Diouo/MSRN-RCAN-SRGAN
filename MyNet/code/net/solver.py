@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 import sys
 sys.path.append("/home/guozy/BISHE/MyNet/code")
 from dataset import get_training_set, get_test_set
-from net.model import Generator, Discriminator, VGG19, RGB2Y
+from net.model import Generator, Discriminator, VGG19, RGB2Y, SSIM
 
 
 class MyNetTrainer(object):
@@ -82,6 +82,11 @@ class MyNetTrainer(object):
         for model_parameters in self.rgb2y.parameters():
             model_parameters.requires_grad = False
         self.rgb2y.eval()
+
+        # build SSIM to calculate ssim
+        self.ssim = SSIM().to(self.device)
+        self.ssim.window = self.ssim.window.to(self.device)
+        self.ssim.eval()
 
 
     def get_dataset(self):
@@ -253,7 +258,8 @@ class MyNetTrainer(object):
                 mse = self.criterionG(target, prediction)
 
                 avg_psnr += 10 * log10(255 * 255 / mse)
-                avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy().astype(np.uint8), target.squeeze(dim=0).cpu().numpy().astype(np.uint8), channel_axis=0) 
+                # avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy().astype(np.uint8), target.squeeze(dim=0).cpu().numpy().astype(np.uint8), channel_axis=0)
+                avg_ssim += self.ssim(prediction.round(), target.round())
         
         img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
         img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)

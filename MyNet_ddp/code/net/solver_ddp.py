@@ -16,7 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 import sys
 sys.path.append("/home/guozy/BISHE/MyNet_ddp/code")
 from dataset import get_training_set, get_test_set
-from net.model_ddp import Generator, Discriminator, VGG19, RGB2Y
+from net.model_ddp import Generator, Discriminator, VGG19, RGB2Y, SSIM
 
 
 class MyNetTrainer(object):
@@ -100,6 +100,11 @@ class MyNetTrainer(object):
         for model_parameters in self.rgb2y.parameters():
             model_parameters.requires_grad = False
         self.rgb2y.eval()
+
+        # build SSIM to calculate ssim
+        self.ssim = SSIM().to(self.local_rank)
+        self.ssim.window = self.ssim.window.to(self.local_rank)
+        self.ssim.eval()
 
 
     def get_dataset(self):

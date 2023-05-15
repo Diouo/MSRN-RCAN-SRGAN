@@ -206,6 +206,7 @@ class VGG19(nn.Module):
 
         return loss
 
+
 class RGB2Y(nn.Module):
     def __init__(self):
         super(RGB2Y, self).__init__()
@@ -214,3 +215,33 @@ class RGB2Y(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
+ 
+class SSIM(torch.nn.Module):
+    def __init__(self, window_size=7,L=255.0):
+        super(SSIM, self).__init__()
+        self.window = torch.ones((window_size,window_size)) / (window_size * window_size)
+        self.window = self.window.unsqueeze(0).unsqueeze(0)
+        self.L = L
+        self.pad = 0
+        self.channel = 1
+
+    def forward(self, img1, img2):
+
+            mu1 = F.conv2d(img1, self.window, padding=self.pad, groups=self.channel)
+            mu2 = F.conv2d(img2, self.window, padding=self.pad, groups=self.channel)
+        
+            mu1_sq = mu1.pow(2)
+            mu2_sq = mu2.pow(2)
+            mu1_mu2 = mu1 * mu2
+        
+            sigma1_sq = F.conv2d(img1 * img1, self.window, padding=self.pad, groups=self.channel) - mu1_sq
+            sigma2_sq = F.conv2d(img2 * img2, self.window, padding=self.pad, groups=self.channel) - mu2_sq
+            sigma12 = F.conv2d(img1 * img2, self.window, padding=self.pad, groups=self.channel) - mu1_mu2
+        
+            C1 = (0.01 * self.L) ** 2
+            C2 = (0.03 * self.L) ** 2
+        
+            v1 = 2.0 * sigma12 + C2
+            v2 = sigma1_sq + sigma2_sq + C2
+        
+            return torch.mean(((2 * mu1_mu2 + C1) * v1) / ((mu1_sq + mu2_sq + C1) * v2))
