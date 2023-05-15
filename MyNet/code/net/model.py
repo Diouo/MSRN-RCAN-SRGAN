@@ -211,6 +211,11 @@ class RGB2Y(nn.Module):
     def __init__(self):
         super(RGB2Y, self).__init__()
         self.conv = nn.Conv2d(3, 1, kernel_size=1,bias=True)
+        weight = torch.Tensor([0.2570,0.5040,0.0980]).unsqueeze(0).unsqueeze(2).unsqueeze(3)
+        bias = torch.Tensor([16.0])
+
+        conv_dict = {'weight':weight, 'bias':bias}
+        self.conv.load_state_dict(conv_dict)
 
     def forward(self, x):
         return self.conv(x)

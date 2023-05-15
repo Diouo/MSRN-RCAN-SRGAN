@@ -7,9 +7,9 @@ nohup python -m torch.distributed.launch --nproc_per_node 2 \
 train_ddp.py \
 --mode pretrain_resume \
 --batchSize 8 \
---G_pretrain_epoch 6100 \
+--G_pretrain_epoch 12600 \
 --G_lr 1e-5 \
---checkpoint '/home/guozy/BISHE/MyNet/result/CNN/checkpoints/7200_checkpoint.pkl' \
+--checkpoint '/home/guozy/BISHE/MyNet_ddp/result/CNN/checkpoints/8000_checkpoint.pkl' \
 --model_out_path '/home/guozy/BISHE/MyNet_ddp/result/CNN' \
 --train_crop_size 128 \
 --test_crop_size 320 \
