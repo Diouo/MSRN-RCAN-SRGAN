@@ -9,7 +9,7 @@ train_ddp.py \
 --batchSize 8 \
 --G_pretrain_epoch 6100 \
 --G_lr 1e-5 \
---checkpoint '/home/guozy/BISHE/MyNet/result/CNN/checkpoints/4000_checkpoint.pkl' \
+--checkpoint '/home/guozy/BISHE/MyNet/result/CNN/checkpoints/7200_checkpoint.pkl' \
 --model_out_path '/home/guozy/BISHE/MyNet_ddp/result/CNN' \
 --train_crop_size 128 \
 --test_crop_size 320 \
