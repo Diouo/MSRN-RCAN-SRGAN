@@ -1,5 +1,3 @@
-import os
-import numpy as np
 from math import log10
 from PIL import Image
 from skimage.metrics import structural_similarity as ssim
@@ -45,12 +43,14 @@ class MyNetTrainer(object):
         self.optimizerD = None
         self.schedulerG = None
         self.schedulerD = None
+        # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
+        # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
         self.feature_extractor = None
         self.RGB2Y = None
         self.training_loader = None
         self.testing_loader = None
         
-        self.device = 'cuda:0'
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model_out_path = model_out_path
         self.checkpoint = config.checkpoint
         self.writer = SummaryWriter(self.model_out_path + '/tensorboard')
@@ -61,22 +61,19 @@ class MyNetTrainer(object):
 
         # build Generator
         self.netG = Generator(n_residual_blocks=self.num_residuals, upsample_factor=self.upscale_factor, base_filter=64, num_channel=3).to(self.device)
-        # self.netG.weight_init(mean=0.0, std=0.2)
         self.criterionG = nn.MSELoss().to(self.device)
-        self.optimizerG = optim.Adam(self.netG.parameters(), lr=self.G_lr)
-        self.writer.add_graph(self.netG, input_to_model=torch.randn(1, 3, 128, 128).to(self.device), verbose=False)
+        self.optimizerG = optim.Adam([{'params': filter(lambda p: p.requires_grad, self.netG.parameters()), 'initial_lr': self.G_lr}], lr=self.G_lr)
         
         # build Discriminator
         self.netD = Discriminator(base_filter=64, num_channel=3).to(self.device)
-        # self.netD.weight_init(mean=0.0, std=0.2)
         self.criterionD = nn.BCELoss().to(self.device)
-        self.optimizerD = optim.Adam(self.netD.parameters(), lr=self.D_lr)
+        self.optimizerD = optim.Adam([{'params': filter(lambda p: p.requires_grad, self.netD.parameters()), 'initial_lr': self.D_lr}], lr=self.D_lr)
 
         # build feature extractor
         self.feature_extractor = VGG19().to(self.device)
         self.feature_extractor.eval()
 
-        # build RGB2Y
+        # build RGB2Y to Change RBG in to Y
         self.rgb2y = RGB2Y().to(self.device)
         self.rgb2y.eval()
 
@@ -225,8 +222,8 @@ class MyNetTrainer(object):
         img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
         img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
         data = (ToTensor()(img)) 
-        data = data.to(self.device).unsqueeze(0) # torch.Size([1, 3, 256, 256])
-        out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
+        data = data.to(self.device).unsqueeze(0)
+        out = self.netG(data).detach().squeeze(0).clamp(0,1)
 
         print('     psnr:{}, ssim:{}'.format(avg_psnr/ len(self.testing_loader), avg_ssim/ len(self.testing_loader)))
         self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
@@ -255,14 +252,13 @@ class MyNetTrainer(object):
                 mse = self.criterionG(target, prediction)
 
                 avg_psnr += 10 * log10(255 * 255 / mse)
-                # avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy().astype(np.uint8), target.squeeze(dim=0).cpu().numpy().astype(np.uint8), channel_axis=0)
                 avg_ssim += self.ssim(prediction.round(), target.round())
         
         img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
         img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
         data = (ToTensor()(img)) 
-        data = data.to(self.device).unsqueeze(0) # torch.Size([1, 3, 256, 256])
-        out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
+        data = data.to(self.device).unsqueeze(0)
+        out = self.netG(data).detach().squeeze(0).clamp(0,1)
 
         print('     psnr:{}, ssim:{}'.format(avg_psnr/ len(self.testing_loader), avg_ssim/ len(self.testing_loader)))
         self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
@@ -280,7 +276,6 @@ class MyNetTrainer(object):
             'G_state_dict':self.netG.state_dict(),
             'optimizeG_state_dict':self.optimizerG.state_dict(),
             'optimizeD_state_dict':self.optimizerD.state_dict(),
-            # new add, not in baseline
             # 'schedulerG_state_dict':self.schedulerG.state_dict(),
             # 'schedulerD_state_dict':self.schedulerD.state_dict(),
             'best_psnr':best_psnr,
@@ -293,11 +288,6 @@ class MyNetTrainer(object):
     def pretrain(self):
         self.build_model()
         self.get_dataset()
-        checkpoints_out_path = self.model_out_path +'/checkpoints/'
-        if os.path.exists(checkpoints_out_path) == False:
-            os.mkdir(checkpoints_out_path)
-
-        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[400,800,1200,1600], gamma=0.5)
 
         best_psnr = 0
         best_ssim = 0
@@ -305,22 +295,21 @@ class MyNetTrainer(object):
         for epoch in range(1, self.G_pretrain_epoch + 1):
             print('\n===> G Pretraining Epoch {} starts'.format(epoch))
             self.G_pretrain(epoch)
-            self.schedulerG.step()
+            if self.schedulerG is not None:
+                self.schedulerG.step()
 
             temp_psnr, temp_ssim = self.test_Y(epoch)
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
                 best_epoch = epoch
-
                 print('     Saving')
                 checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
-
+                torch.save(checkpoint, self.model_out_path +'/checkpoints/' + str(epoch) + '_checkpoint.pkl')
             elif epoch % 50 == 0 or epoch == self.G_pretrain_epoch:
                 print('     Saving')
                 checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
+                torch.save(checkpoint, self.model_out_path +'/checkpoints/' + str(epoch) + '_checkpoint.pkl')
 
         return best_psnr, best_ssim, best_epoch
 
@@ -329,46 +318,31 @@ class MyNetTrainer(object):
         self.build_model()
         self.get_dataset()
         checkpoint = torch.load(self.checkpoint, map_location=self.device)
-        checkpoints_out_path = self.model_out_path +'/checkpoints/'
-        if os.path.exists(checkpoints_out_path) == False:
-            os.mkdir(checkpoints_out_path)
-        
-        # self.netG.load_state_dict(checkpoint, strict = False)
-        # best_psnr = 0
-        # best_ssim = 0
-        # start_epoch = 0
-        # best_epoch = 0
-
         self.netG.load_state_dict(checkpoint['G_state_dict'])
         best_psnr = checkpoint['best_psnr']
         best_ssim = checkpoint['best_ssim']
         start_epoch = checkpoint['epoch'] 
         best_epoch = checkpoint['epoch'] 
 
-        self.optimizerG = optim.Adam([{'params': filter(lambda p: p.requires_grad, self.netG.parameters()), 'initial_lr': self.G_lr}], lr=self.G_lr)
-        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[452,800,1200,1600], gamma=0.5, last_epoch=start_epoch)
-
-        # temp_psnr, temp_ssim = self.test(start_epoch)
         temp_psnr, temp_ssim = self.test_Y(start_epoch)
         for epoch in range(start_epoch + 1, start_epoch + 1 + self.G_pretrain_epoch + 1):
             print('\n===> G Pretraining Epoch {} starts'.format(epoch))
             self.G_pretrain(epoch)
-            self.schedulerG.step()
-            # temp_psnr, temp_ssim = self.test(epoch)
+            if self.schedulerG is not None:
+                self.schedulerG.step()
+
             temp_psnr, temp_ssim = self.test_Y(epoch)
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
                 best_epoch = epoch
-
                 print('     Saving')
                 checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
-
+                torch.save(checkpoint, self.model_out_path +'/checkpoints/' + str(epoch) + '_checkpoint.pkl')
             elif epoch % 50 == 0 or epoch == start_epoch + 1 + self.G_pretrain_epoch:
                 print('     Saving')
                 checkpoint = {'G_state_dict':self.netG.state_dict(), 'epoch':epoch,'best_psnr':best_psnr,'best_ssim':best_ssim}
-                torch.save(checkpoint, checkpoints_out_path + str(epoch) + '_checkpoint.pkl')
+                torch.save(checkpoint, self.model_out_path +'/checkpoints/' + str(epoch) + '_checkpoint.pkl')
 
         return best_psnr, best_ssim, best_epoch
 
@@ -378,9 +352,6 @@ class MyNetTrainer(object):
         self.get_dataset()
         self.netG.load_state_dict(torch.load(self.checkpoint, map_location=self.device)['G_state_dict']) 
 
-        # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
-        # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
-
         best_psnr = 0
         best_ssim = 0
         best_epoch = 0
@@ -389,17 +360,17 @@ class MyNetTrainer(object):
             if (epoch-1) % self.K == 0:
                 self.D_train(epoch)
             self.G_train(epoch)
-            temp_psnr, temp_ssim = self.test(epoch)
+            if self.schedulerD is not None:
+                self.schedulerD.step()
+            if self.schedulerG is not None:
+                self.schedulerG.step()
 
-            # self.schedulerD.step()
-            # self.schedulerG.step()
-
+            temp_psnr, temp_ssim = self.test_Y(epoch)
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
                 best_epoch = epoch
                 self.save(best_psnr, best_ssim, epoch)
-
             elif epoch % 50 == 0 or epoch == self.nEpochs:
                 self.save(best_psnr, best_ssim, epoch)
             
@@ -410,19 +381,8 @@ class MyNetTrainer(object):
         self.build_model()
         self.get_dataset()
         checkpoint = torch.load(self.checkpoint, map_location=self.device)
-
-        weights_dict = {}
-        for k, v in checkpoint['G_state_dict'].items():
-            new_k =  k[7:]
-            weights_dict[new_k] = v
-        self.netG.load_state_dict(weights_dict)
-
-        weights_dict = {}
-        for k, v in checkpoint['D_state_dict'].items():
-            new_k = k[7:]
-            weights_dict[new_k] = v
-        self.netD.load_state_dict(weights_dict)
-
+        self.netG.load_state_dict(checkpoint['G_state_dict'])
+        self.netD.load_state_dict(checkpoint['D_state_dict'])
         best_psnr = checkpoint['best_psnr']
         best_ssim = checkpoint['best_ssim']
         start_epoch = checkpoint['epoch'] 
@@ -430,24 +390,22 @@ class MyNetTrainer(object):
         self.optimizerG.load_state_dict(checkpoint['optimizeG_state_dict'])  
         self.optimizerD.load_state_dict(checkpoint['optimizeD_state_dict']) 
 
-        # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
-        # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
-
         for epoch in range(start_epoch + 1, start_epoch + 1 + self.nEpochs + 1):
             print("\n===> Resuming Epoch {} starts".format(epoch))
             if (epoch-1) % self.K == 0:
                 self.D_train(epoch)
             self.G_train(epoch)
-            temp_psnr, temp_ssim = self.test(epoch)
-            # self.schedulerD.step()
-            # self.schedulerG.step()
+            if self.schedulerD is not None:
+                self.schedulerD.step()
+            if self.schedulerG is not None:
+                self.schedulerG.step()
 
+            temp_psnr, temp_ssim = self.test_Y(epoch)
             if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                 best_psnr = temp_psnr
                 best_ssim = temp_ssim
                 best_epoch = epoch
                 self.save(best_psnr, best_ssim, epoch)
-
             elif epoch % 50 == 0 or epoch == start_epoch + self.nEpochs:
                 self.save(best_psnr, best_ssim, epoch)
 
