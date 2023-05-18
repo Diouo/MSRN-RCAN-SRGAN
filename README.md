@@ -5,7 +5,7 @@ This repository contains an simple PyTorch implementation of [SRGAN](https://arx
     [MSRN](https://arxiv.org/abs/1904.10698)\
 
 Now CPU/OneGPU version has been implemented, you can use it freely with bash in folder: MyNet\
-As for DDP version, the code is also available but may not be easy to use, and it will coming soon
+As for DDP version, the code is also available in folder: MyNet_ddp but may not be easy to use, and it will coming soon
 
 
 ## Code Attention:
