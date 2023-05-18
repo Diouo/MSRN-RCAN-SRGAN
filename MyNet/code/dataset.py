@@ -49,36 +49,20 @@ def target_transform():
     ])
 
 
-def get_training_set(upscale_factor,crop_size, dataSet='DIV2K'):
-
-    if dataSet == 'DIV2K':
-        root_dir = "/home/guozy/BISHE/dataset/" + dataSet + "/images/"
-        train_dir = join(root_dir, "train")
-    else:
-        train_dir = "/home/guozy/BISHE/dataset/" + dataSet
-
+def get_training_set(upscale_factor,crop_size, dataSet):
     valid_crop_size = calculate_valid_crop_size(crop_size, upscale_factor)
 
-    return DatasetFromFolder(train_dir,
+    return DatasetFromFolder(dataSet,
                              augment_transform=augment_transform(valid_crop_size, 'train'),
                              input_transform=input_transform(valid_crop_size, upscale_factor),
                              target_transform=target_transform(), 
                              )
 
 
-def get_test_set(upscale_factor,crop_size, dataSet='DIV2K'):
-
-    if dataSet == 'DIV2K':
-        root_dir = "/home/guozy/BISHE/dataset/" + dataSet + "/images/"
-        test_dir = join(root_dir, "test")
-    elif dataSet == 'BSD100':
-        test_dir = '/home/guozy/BISHE/dataset/BSD100/'
-    else:
-        test_dir = "/home/guozy/BISHE/dataset/" + dataSet
-    
+def get_test_set(upscale_factor, crop_size, dataSet):
     valid_crop_size = calculate_valid_crop_size(crop_size, upscale_factor)
 
-    return DatasetFromFolder(test_dir,
+    return DatasetFromFolder(dataSet,
                              augment_transform=augment_transform(valid_crop_size, 'test'),
                              input_transform=input_transform(valid_crop_size, upscale_factor),
                              target_transform=target_transform(),

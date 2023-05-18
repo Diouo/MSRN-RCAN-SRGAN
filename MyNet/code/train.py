@@ -18,12 +18,12 @@ parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 
 # Ttraining mode settings
 parser.add_argument('--mode', type=str, default='run', help='pretrain/pretrain_resume/run/run_resume')
-parser.add_argument('--model_out_path', type=str, default=None)
+parser.add_argument('--model_out_path', type=str, default='you can set or use datetime automatically')
 parser.add_argument('--checkpoint', type=str, default=None)
 
 # dataset settings
-parser.add_argument('--train_dataset', type=str, default='DIV2K', help='desicion of dataset')
-parser.add_argument('--test_dataset', type=str, default='BSD100', help='desicion of dataset')
+parser.add_argument('--train_dataset', type=str, default='/home/guozy/BISHE/dataset/DIV2K/images/train', help='filepath of dataset')
+parser.add_argument('--test_dataset', type=str, default='/home/guozy/BISHE/dataset/DIV2K/images/test', help='all png/jpg will be loaded automatically')
 parser.add_argument('--train_crop_size', type=int, default=128, help='crop size of the sample')
 parser.add_argument('--test_crop_size', type=int, default=256, help='crop size of the sample')
 parser.add_argument('--test_image', type=int, default='/home/guozy/BISHE/dataset/Set14/comic.png', help='for show resolve')
@@ -37,7 +37,7 @@ parser.add_argument('--G_pretrain_epoch', type=int, default=400)
 parser.add_argument('--G_lr', type=float, default=1e-4, help='Learning Rate')
 parser.add_argument('--D_lr', type=float, default=1e-4, help='Learning Rate')
 parser.add_argument('--seed', type=int, default=42, help='random seed to use')
-parser.add_argument('--upscale_factor', '-uf',  type=int, default=4, help="only 2 * k")
+parser.add_argument('--upscale_factor', '-uf',  type=int, default=4, help="4 only, if wanna change, have to recode net.model.py because of nearest interplate")
 
 args = parser.parse_args()
 
@@ -49,7 +49,7 @@ def main():
     if args.model_out_path is None:
         now = datetime.datetime.now()
         now = now.strftime("%Y-%m-%d_%H:%M:%S")
-        model_out_path = '/home/guozy/BISHE/MyNet_ddp/result/' + now
+        model_out_path = './result/' + now
         if os.path.exists(model_out_path) == False:
                 os.mkdir(model_out_path)
         checkpoints_out_path = model_out_path +'/checkpoints/'
