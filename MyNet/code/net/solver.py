@@ -357,8 +357,7 @@ class MyNetTrainer(object):
         best_epoch = 0
         for epoch in range(1, self.nEpochs + 1):
             print("\n===> Running Epoch {} starts".format(epoch))
-            if (epoch-1) % self.K == 0:
-                self.D_train(epoch)
+            self.D_train(epoch)
             self.G_train(epoch)
             if self.schedulerD is not None:
                 self.schedulerD.step()
@@ -392,8 +391,7 @@ class MyNetTrainer(object):
 
         for epoch in range(start_epoch + 1, start_epoch + 1 + self.nEpochs + 1):
             print("\n===> Resuming Epoch {} starts".format(epoch))
-            if (epoch-1) % self.K == 0:
-                self.D_train(epoch)
+            self.D_train(epoch)
             self.G_train(epoch)
             if self.schedulerD is not None:
                 self.schedulerD.step()

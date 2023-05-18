@@ -29,7 +29,6 @@ parser.add_argument('--test_crop_size', type=int, default=256, help='crop size o
 
 # hyper-parameters
 parser.add_argument('--num_residuals', type=int, default=23)
-parser.add_argument('--K', type=int, default=5, help='alternatively training G and D')
 parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
 parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
 parser.add_argument('--nEpochs', type=int, default=400, help='number of epochs to train for')
@@ -104,9 +103,4 @@ if __name__ == '__main__':
     cudnn.benchmark = True
     cudnn.deterministic = True
 
-    # set for DDP
-    os.environ['CUDA_VISIBLE_DEVICES'] = "0,1"
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "29500"
-    
     main()
