@@ -9,10 +9,8 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
 from torch.utils.tensorboard import SummaryWriter
 
-import sys
-sys.path.append("/home/guozy/BISHE/MyNet/code")
 from dataset import get_training_set, get_test_set
-from net.model import Generator, Discriminator, VGG19, RGB2Y, SSIM
+from model import Generator, Discriminator, VGG19, RGB2Y, SSIM
 
 
 class MyNetTrainer(object):
