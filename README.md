@@ -18,7 +18,7 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 
 ## Train Settings:
 1. You can assgin your own lr_scheduler in net.solver.__init__
-2. D_train require d_real_loss/d_fake_loss less than 0.4, you can change the value in train.py !!!
+2. D_train require d_real_loss and d_fake_loss more than 0.4 to aviod D too strong, you can change the value in train.py !!!
 3. Hyper parameter K in GAN is not supported(default==1) because it is useless in practice, you have to recode net.solver.run/run_resume if you want
 
 
