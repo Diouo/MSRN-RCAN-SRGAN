@@ -54,7 +54,8 @@ class MyNetTrainer(object):
         
         self.model_out_path = model_out_path
         self.checkpoint = config.checkpoint
-        self.writer = SummaryWriter(self.model_out_path + '/tensorboard')
+        if config.local_rank == 0:
+            self.writer = SummaryWriter(self.model_out_path + '/tensorboard')
 
         # self.local_rank =  int(os.environ["LOCAL_RANK"])
         # torch.cuda.set_device(self.local_rank)
@@ -96,9 +97,6 @@ class MyNetTrainer(object):
 
         # build RGB2Y
         self.rgb2y = RGB2Y().to(self.local_rank)
-        self.rgb2y.load_state_dict(torch.load('/home/guozy/BISHE/OtherNet/RGB2Y.pkl'))
-        for model_parameters in self.rgb2y.parameters():
-            model_parameters.requires_grad = False
         self.rgb2y.eval()
 
         # build SSIM to calculate ssim
@@ -113,9 +111,9 @@ class MyNetTrainer(object):
         train_set = get_training_set(self.upscale_factor,self.train_crop_size, self.train_dataset)
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True)
         test_set = get_test_set(self.upscale_factor, self.test_crop_size, self.test_dataset)
-        # test_sampler = torch.utils.data.distributed.DistributedSampler(test_set, shuffle=False)
-        self.training_loader = DataLoader(dataset=train_set, batch_size=self.batchSize, num_workers=8, pin_memory=True, sampler=train_sampler)
-        self.testing_loader = DataLoader(dataset=test_set, batch_size=self.testBatchSize, num_workers=4, pin_memory=True, shuffle=False)
+        test_sampler = torch.utils.data.distributed.DistributedSampler(test_set, shuffle=False)
+        self.training_loader = DataLoader(dataset=train_set, batch_size=self.batchSize, num_workers=4, pin_memory=True, sampler=train_sampler)
+        self.testing_loader = DataLoader(dataset=test_set, batch_size=self.testBatchSize, num_workers=0, pin_memory=True, sampler=test_sampler)
 
 
     def G_pretrain(self,epoch):
@@ -284,24 +282,28 @@ class MyNetTrainer(object):
                 data = data.to(self.local_rank),
                 target = target.to(self.local_rank).mul(255.0)
                 prediction = self.netG(data[0]).clamp(0,1).mul(255.0)
-
                 target = self.rgb2y(target)
                 prediction = self.rgb2y(prediction)
+
                 mse = self.criterionG(target, prediction)
+                dist.all_reduce(mse, op=dist.ReduceOp.SUM)
+                avg_psnr += 10 * log10(255 * 255 / mse * self.world_size)
 
-                avg_psnr += 10 * log10(255 * 255 / mse)
-                avg_ssim += self.ssim(prediction.round(), target.round()) 
-        
-        img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
-        img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
-        data = (ToTensor()(img)) 
-        data = data.to(self.local_rank).unsqueeze(0) # torch.Size([1, 3, 256, 256])
-        out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
+                temp_ssim = self.ssim(prediction.round(), target.round()) 
+                dist.all_reduce(temp_ssim, op=dist.ReduceOp.SUM)
+                avg_ssim += temp_ssim / self.world_size
 
-        print('     psnr:{}, ssim:{}'.format(avg_psnr/ len(self.testing_loader), avg_ssim/ len(self.testing_loader)))
-        self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
-        self.writer.add_scalar(tag="test/SSIM", scalar_value=avg_ssim / len(self.testing_loader), global_step=epoch)
-        self.writer.add_image("test/IMAGE", out, epoch, dataformats='CHW')
+        if self.local_rank == 0:
+            img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
+            img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
+            data = (ToTensor()(img)) 
+            data = data.to(self.local_rank).unsqueeze(0) # torch.Size([1, 3, 256, 256])
+            out = self.netG(data).detach().squeeze(0).clamp(0,1) # torch.Size([3, 1024, 1024])
+
+            print('     psnr:{}, ssim:{}'.format(avg_psnr/ len(self.testing_loader), avg_ssim/ len(self.testing_loader)))
+            self.writer.add_scalar(tag="test/PSNR", scalar_value=avg_psnr / len(self.testing_loader), global_step=epoch)
+            self.writer.add_scalar(tag="test/SSIM", scalar_value=avg_ssim / len(self.testing_loader), global_step=epoch)
+            self.writer.add_image("test/IMAGE", out, epoch, dataformats='CHW')
 
         return avg_psnr, avg_ssim
 
@@ -389,17 +391,17 @@ class MyNetTrainer(object):
         dist.barrier()
         for epoch in range(start_epoch + 1, start_epoch + 1 + self.G_pretrain_epoch + 1):
             self.training_loader.sampler.set_epoch(epoch)
-            # self.testing_loader.sampler.set_epoch(epoch)
+            self.testing_loader.sampler.set_epoch(epoch)
             if self.local_rank == 0:
                 print('\n===> G Pretraining Epoch {} starts'.format(epoch))
+                
             dist.barrier()
-
             self.G_pretrain(epoch)
+            dist.barrier()
+            temp_psnr, temp_ssim = self.test_Y(epoch)
             # self.schedulerG.step()
             
             if self.local_rank == 0:
-                temp_psnr, temp_ssim = self.test_Y(epoch)
-
                 if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                     best_psnr = temp_psnr
                     best_ssim = temp_ssim
