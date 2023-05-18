@@ -23,6 +23,7 @@ class MyNetTrainer(object):
         self.test_crop_size = config.test_crop_size
         self.test_dataset = config.test_dataset
         self.testBatchSize = config.testBatchSize
+        self.test_image = config.test_image
 
         self.upscale_factor = config.upscale_factor
         self.nEpochs = config.nEpochs
@@ -217,7 +218,7 @@ class MyNetTrainer(object):
                 avg_psnr += 10 * log10(1 / mse.item())
                 avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy(), target.squeeze(dim=0).cpu().numpy(), channel_axis=0) 
         
-        img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
+        img = Image.open(self.test_image)
         img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
         data = (ToTensor()(img)) 
         data = data.to(self.device).unsqueeze(0)
@@ -252,7 +253,7 @@ class MyNetTrainer(object):
                 avg_psnr += 10 * log10(255 * 255 / mse)
                 avg_ssim += self.ssim(prediction.round(), target.round())
         
-        img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
+        img = Image.open(self.test_image)
         img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
         data = (ToTensor()(img)) 
         data = data.to(self.device).unsqueeze(0)

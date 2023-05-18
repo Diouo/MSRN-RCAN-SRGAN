@@ -19,13 +19,14 @@ parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 # Ttraining mode settings
 parser.add_argument('--mode', type=str, default='run', help='pretrain/pretrain_resume/run/run_resume')
 parser.add_argument('--model_out_path', type=str, default=None)
-parser.add_argument('--checkpoint', type=str)
+parser.add_argument('--checkpoint', type=str, default=None)
 
 # dataset settings
 parser.add_argument('--train_dataset', type=str, default='DIV2K', help='desicion of dataset')
 parser.add_argument('--test_dataset', type=str, default='BSD100', help='desicion of dataset')
 parser.add_argument('--train_crop_size', type=int, default=128, help='crop size of the sample')
 parser.add_argument('--test_crop_size', type=int, default=256, help='crop size of the sample')
+parser.add_argument('--test_image', type=int, default='/home/guozy/BISHE/dataset/Set14/comic.png', help='for show resolve')
 
 # hyper-parameters
 parser.add_argument('--num_residuals', type=int, default=23)
