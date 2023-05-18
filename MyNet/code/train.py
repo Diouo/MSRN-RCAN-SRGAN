@@ -36,6 +36,7 @@ parser.add_argument('--nEpochs', type=int, default=400, help='number of epochs t
 parser.add_argument('--G_pretrain_epoch', type=int, default=400)
 parser.add_argument('--G_lr', type=float, default=1e-4, help='Learning Rate')
 parser.add_argument('--D_lr', type=float, default=1e-4, help='Learning Rate')
+parser.add_argument('--D_threshold', type=float, default=0.4, help='use for limit the training of D')
 parser.add_argument('--seed', type=int, default=42, help='random seed to use')
 parser.add_argument('--upscale_factor', '-uf',  type=int, default=4, help="4 only, if wanna change, have to recode net.model.py because of nearest interplate")
 

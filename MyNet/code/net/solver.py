@@ -32,6 +32,7 @@ class MyNetTrainer(object):
         self.K = config.K
         self.G_lr = config.G_lr
         self.D_lr = config.D_lr
+        self.D_threshold = config.D_threshold
 
         self.netG = None
         self.netD = None
@@ -180,12 +181,12 @@ class MyNetTrainer(object):
 
             d_real = self.netD(target) # prob of real samples
             d_real_loss = self.criterionD(d_real, real_label) # BCE loss of real samples
-            if d_real_loss.item() > 0.4:
+            if d_real_loss.item() > self.D_threshold:
                 d_real_loss.backward()
 
             d_fake = self.netD(self.netG(data)) # prob of fake samples
             d_fake_loss = self.criterionD(d_fake, fake_label) # BCE loss of fake samples
-            if d_fake_loss.item() > 0.4:
+            if d_fake_loss.item() > self.D_threshold:
                 d_fake_loss.backward()
 
             d_total =  d_real_loss + d_fake_loss  # total loss of D
