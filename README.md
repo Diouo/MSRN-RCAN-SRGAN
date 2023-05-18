@@ -3,9 +3,13 @@ This repository contains an simple PyTorch implementation of [SRGAN](https://arx
     [EDSR](https://arxiv.org/abs/1707.02921),
     [RCAN](https://arxiv.org/abs/1807.02758), 
     [MSRN](https://arxiv.org/abs/1904.10698)\
+    
 Now CPU/OneGPU version has been implemented, you can use it freely with bash in folder: MyNet \
+
 As for DDP version, the code is also available in folder: MyNet_ddp but may not be easy to use, and it will coming soon \
-Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google.com/drive/folders/1SM0gsugcjTfYDlYrIqyWXFZyYuA6LkXc?usp=sharing) \
+
+Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google.com/drive/folders/1SM0gsugcjTfYDlYrIqyWXFZyYuA6LkXc?usp=sharing)
+
 
 ## Code Attention:
 1. The function resize of torch is not bicubic by default, but the default has been change to Bicubic now
