@@ -27,7 +27,7 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 1. prepare the dataset  [DIV2K](https://data.vision.ee.ethz.ch/cvl/DIV2K/) in whatever directory you want, and assign to args in train.py/pretrain.sh
 2. assign the model out path as above too
 3. input: bash pretrain.sh 
-4. if you want to monitor the training, use bash tensorboard.sh after you assign the model out paht in bash
+4. if you want to monitor the training, input: bash tensorboard.sh after you assign the model out paht in bash
 
 
 ## How to test
@@ -37,7 +37,7 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 ## Dateset Settings:
 1. The function torchvision.transforms.Resize used for downsample is not bicubic by default, but has been change to Bicubic now
 2. Training and Validating Dateset is  [DIV2K](https://data.vision.ee.ethz.ch/cvl/DIV2K/)
-3. Data augmentation: random crop -> random rotation in 90 * k degree/flipping
+3. Data augmentation: random crop -> random rotation in 90 * k degree/flipping, you can change it in MyNet.code.dataset.py
 
 
 ## Train Settings:
@@ -54,9 +54,8 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 2. Use float32 for PSNR calculation and uint8 for SSIM calculation
 
 
-## Performance
+## Performance in PSNR/SSIM
 |  Model   | Set5  | Set14   | BSD100 |
-|  -   | PSNR/SSIM  | PSNR/SSIM   | PSNR/SSIM |
 |  ----  | ----  |  ----  | ----  |
 | Bicubic |	28.42/0.8223 | 25.95/0.7246 | 25.97/0.6862 |
 | SRCNN | 30.07/0.8627 | 27.18/0.7861 |	26.68/0.7291 |
@@ -67,7 +66,7 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 
 
 ## Result
-![baby](/home/guozy/BISHE/for_readme/baby.jpg)
-![baboon](/home/guozy/BISHE/for_readme/baboon.jpg)
-![commic](/home/guozy/BISHE/for_readme/comic.jpg)
+![baby](./for_readme/baby.jpg)
+![baboon](./for_readme/baboon.jpg)
+![commic](./for_readme/comic.jpg)
 
