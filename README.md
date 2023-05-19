@@ -1,14 +1,14 @@
 # MSRN-RCAN-SRGAN
 
 ## Overview
-This repository contains an simple PyTorch implementation of 4x [SRGAN](https://arxiv.org/abs/1609.04802) combined with
+This repository contains a simple PyTorch implementation of 4x [SRGAN](https://arxiv.org/abs/1609.04802) combined with
     [EDSR](https://arxiv.org/abs/1707.02921),
     [RCAN](https://arxiv.org/abs/1807.02758), 
     [MSRN](https://arxiv.org/abs/1904.10698).
 
 Now CPU/OneGPU version has been implemented, you can use it freely with bash, the codes are in folder: MyNet 
   
-As for DDP version, the codes is also available in folder: MyNet_ddp but may not be easy to use, and it will coming soon 
+As for DDP version, the codes is also available in folder: MyNet_ddp but may not be easy to use, and it s coming soon 
 
 
 ## Model
