@@ -17,7 +17,7 @@ from net.solver import MyNetTrainer
 parser = argparse.ArgumentParser(description='PyTorch Super Resolution')
 
 # Ttraining mode settings
-parser.add_argument('--mode', type=str, default='run', help='pretrain/pretrain_resume/run/run_resume')
+parser.add_argument('--mode', type=str, default='pretrain', help='pretrain/pretrain_resume/run/run_resume')
 parser.add_argument('--model_out_path', type=str, default='you can set or use datetime automatically')
 parser.add_argument('--checkpoint', type=str, default=None)
 
@@ -32,8 +32,8 @@ parser.add_argument('--test_image', type=int, default='/home/guozy/BISHE/dataset
 parser.add_argument('--num_residuals', type=int, default=23)
 parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
 parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
-parser.add_argument('--nEpochs', type=int, default=400, help='number of epochs to train for')
-parser.add_argument('--G_pretrain_epoch', type=int, default=400)
+parser.add_argument('--nEpochs', type=int, default=10000, help='number of epochs to train for')
+parser.add_argument('--G_pretrain_epoch', type=int, default=10000)
 parser.add_argument('--G_lr', type=float, default=1e-4, help='Learning Rate')
 parser.add_argument('--D_lr', type=float, default=1e-4, help='Learning Rate')
 parser.add_argument('--D_threshold', type=float, default=0.4, help='use for limit the training of D')
