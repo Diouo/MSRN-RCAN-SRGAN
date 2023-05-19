@@ -1,15 +1,21 @@
 # MSRN-RCAN-SRGAN
 
 ## Overview
-This repository contains an simple PyTorch implementation of [SRGAN](https://arxiv.org/abs/1609.04802) combined with
+This repository contains an simple PyTorch implementation of 4x [SRGAN](https://arxiv.org/abs/1609.04802) combined with
     [EDSR](https://arxiv.org/abs/1707.02921),
     [RCAN](https://arxiv.org/abs/1807.02758), 
-    [MSRN](https://arxiv.org/abs/1904.10698)
+    [MSRN](https://arxiv.org/abs/1904.10698).
 
 Now CPU/OneGPU version has been implemented, you can use it freely with bash, the codes are in folder: MyNet 
   
 As for DDP version, the codes is also available in folder: MyNet_ddp but may not be easy to use, and it will coming soon 
-  
+
+
+## Model
+![MSCARB](./for_readme/MSCARB.jpg)
+![MSCARN](./for_readme/MSCARN.jpg)
+![Discriminator](./for_readme/Discriminator.jpg)
+
 
 ## Prerequisites
 1. Linux version 3.10.0-693.el7.x86_64
@@ -42,11 +48,12 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 
 ## Train Settings:
 1. You can assgin your own lr_scheduler in net.solver.__init__
-2. D_train require d_real_loss and d_fake_loss more than 0.4 to aviod D too strong, you can change the value in train.py's D_threshold !!!
-3. Hyper parameter K in GAN is not supported(default==1) because it is useless in practice, you have to recode net.solver.run/run_resume if you want
-4. pretrain G with 1e-4 lr for 2000 times, and then 1e-5 lr for 8000 times
-5. run G and D G with 1e-5 lr for 10000 times
-6. the more iteration you train in pretrain and run, the better G is, if you want know more, read about [SRGAN](https://arxiv.org/abs/1609.04802) or [ESRGAN](https://arxiv.org/abs/1809.00219)
+2. Train on RGB, but validate on Y. However, validate on RGB is also offer in MyNet.code.net.solver.test
+3. D_train require d_real_loss and d_fake_loss more than 0.4 to aviod D too strong, you can change the value in train.py's D_threshold !!!
+4. Hyper parameter K in GAN is not supported(default==1) because it is useless in practice, you have to recode net.solver.run/run_resume if you want
+5. pretrain G with 1e-4 lr for 2000 times, and then 1e-5 lr for 8000 times
+6. run G and D G with 1e-5 lr for 10000 times
+7. the more iteration you train in pretrain and run, the better G is, if you want know more, read about [SRGAN](https://arxiv.org/abs/1609.04802) or [ESRGAN](https://arxiv.org/abs/1809.00219)
 
 
 ## Test Settings:
@@ -69,4 +76,11 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 ![baby](./for_readme/baby.jpg)
 ![baboon](./for_readme/baboon.jpg)
 ![commic](./for_readme/comic.jpg)
+
+
+## Contributing
+Please feel free to contribute to the project, I am pleasured to answer any questions
+
+## Acknowledgements
+This code is built on [SRGAN](https://github.com/soapisnotfat/super-resolution) (PyTorch). Thank a lot to the authors for sharing codes!
 
