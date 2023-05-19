@@ -12,8 +12,10 @@ As for DDP version, the codes is also available in folder: MyNet_ddp but may not
 
 
 ## Model
-![MSCARB](./for_readme/MSCARB.jpg)
-![MSCARN](./for_readme/MSCARN.jpg)
+![MSCARB](./for_readme/MSCARB.jpg)  
+
+![MSCARN](./for_readme/MSCARN.jpg)  
+
 ![Discriminator](./for_readme/Discriminator.jpg)
 
 
