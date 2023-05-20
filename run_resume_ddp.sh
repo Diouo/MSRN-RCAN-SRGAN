@@ -6,7 +6,7 @@ cd /home/guozy/BISHE/MyNet_ddp/code
 nohup python -m torch.distributed.launch --nproc_per_node 2 \
 train_ddp.py \
 --mode run_resume \
---test_dataset 'BSD100' \
+--test_dataset '/home/guozy/BISHE/dataset/BSD100' \
 --nEpochs 10000 \
 --G_lr 1e-5 \
 --D_lr 1e-5 \

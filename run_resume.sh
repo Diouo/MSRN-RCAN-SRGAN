@@ -4,7 +4,7 @@ conda activate cyan_torch
 cd /home/guozy/BISHE/MyNet/code
 nohup python train.py \
 --mode run_resume \
---test_dataset 'BSD100' \
+--test_dataset '/home/guozy/BISHE/dataset/BSD100' \
 --nEpochs 210 \
 --G_lr 1e-5 \
 --D_lr 1e-5 \

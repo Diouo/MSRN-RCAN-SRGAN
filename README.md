@@ -6,10 +6,8 @@ This repository contains a simple PyTorch implementation of 4x [SRGAN](https://a
     [RCAN](https://arxiv.org/abs/1807.02758), 
     [MSRN](https://arxiv.org/abs/1904.10698).
 
-Now CPU/OneGPU version has been implemented, you can use it freely with bash, the codes are in folder: MyNet 
+Now CPU/OneGPU/DDP versions have been implemented, you can use it freely with bash
   
-As for DDP version, the codes is also available in folder: MyNet_ddp but may not be easy to use, and it is coming soon 
-
 
 ## Model
 ![MSCARB](./for_readme/MSCARB.jpg)  

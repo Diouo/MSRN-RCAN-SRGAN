@@ -23,8 +23,8 @@ parser.add_argument('--model_out_path', type=str, default=None)
 parser.add_argument("--local_rank", default=-1, type=int)
 
 # dataset settings
-parser.add_argument('--train_dataset', type=str, default='DIV2K', help='desicion of dataset')
-parser.add_argument('--test_dataset', type=str, default='DIV2K', help='desicion of dataset')
+parser.add_argument('--train_dataset', type=str, default='/home/guozy/BISHE/dataset/DIV2K/images/train', help='filepath of dataset')
+parser.add_argument('--test_dataset', type=str, default='/home/guozy/BISHE/dataset/DIV2K/images/test', help='all png/jpg will be loaded automatically')
 parser.add_argument('--train_crop_size', type=int, default=128, help='crop size of the sample')
 parser.add_argument('--test_crop_size', type=int, default=256, help='crop size of the sample')
 parser.add_argument('--test_image', type=int, default='/home/guozy/BISHE/dataset/Set14/comic.png', help='for show resolve')
