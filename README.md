@@ -51,7 +51,7 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 2. Train on RGB, but validate on Y. However, validate on RGB is also offer in MyNet.code.net.solver.test
 3. D_train require d_real_loss and d_fake_loss more than 0.4 to aviod D too strong, you can change the value in train.py's D_threshold !!!
 4. Hyper parameter K in GAN is not supported(default==1) because it is useless in practice, you have to recode net.solver.run/run_resume if you want
-5. pretrain G with 1e-4 lr for 2000 times, and then 1e-5 lr for 8000 times
+5. pretrain G with 1e-4 lr for 2000 times, and then 1e-5 lr for 18000 times
 6. run G and D with 1e-5 lr for 10000 times
 7. the more iteration you train in pretrain and run, the better G is, if you want know more, read about [SRGAN](https://arxiv.org/abs/1609.04802) or [ESRGAN](https://arxiv.org/abs/1809.00219)
 
