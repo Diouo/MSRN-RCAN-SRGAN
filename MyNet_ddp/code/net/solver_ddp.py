@@ -47,6 +47,8 @@ class MyNetTrainer(object):
         self.optimizerD = None
         self.schedulerG = None
         self.schedulerD = None
+        # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
+        # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
         self.feature_extractor = None
         self.RGB2Y = None
         self.training_loader = None
@@ -423,41 +425,40 @@ class MyNetTrainer(object):
         self.build_model()
         self.get_dataset()
         checkpoint = torch.load(self.checkpoint, map_location='cuda:{}'.format(self.local_rank))
-
         weights_dict = {}
         for k, v in checkpoint['G_state_dict'].items():
             new_k = 'module.' + k
             weights_dict[new_k] = v
         self.netG.load_state_dict(weights_dict)
 
-        # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
-        # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5)
-
         best_psnr = 0
         best_ssim = 0
         best_epoch = 0
         dist.barrier()
         for epoch in range(1, self.nEpochs + 1):
+            self.training_loader.sampler.set_epoch(epoch)
+            self.testing_loader.sampler.set_epoch(epoch)
             dist.barrier()
             if self.local_rank == 0:
                 print("\n===> Running Epoch {} starts".format(epoch))
             dist.barrier()
+            
             if (epoch-1) % self.K == 0:
                 self.D_train(epoch)
             dist.barrier()
             self.G_train(epoch)
-            # self.schedulerD.step()
-            # self.schedulerG.step()
+            if self.schedulerD is not None:
+                self.schedulerD.step()
+            if self.schedulerG is not None:
+                self.schedulerG.step()
 
             if self.local_rank == 0:
                 temp_psnr, temp_ssim = self.test_Y(epoch)
-
                 if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
                     best_psnr = temp_psnr
                     best_ssim = temp_ssim
                     best_epoch = epoch
                     self.save(best_psnr, best_ssim, epoch)
-
                 elif epoch % 50 == 0 or epoch == self.nEpochs:
                     self.save(best_psnr, best_ssim, epoch)
             
@@ -468,7 +469,6 @@ class MyNetTrainer(object):
         self.build_model()
         self.get_dataset()
         checkpoint = torch.load(self.checkpoint, map_location='cuda:{}'.format(self.local_rank))
-
         self.netG.load_state_dict(checkpoint['G_state_dict'])
         self.netD.load_state_dict(checkpoint['D_state_dict'])
         best_psnr = checkpoint['best_psnr']
@@ -480,33 +480,32 @@ class MyNetTrainer(object):
 
         # self.schedulerG.load_state_dict(checkpoint['schedulerG_state_dict'])  
         # self.schedulerD.load_state_dict(checkpoint['schedulerD_state_dict']) 
-        # self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
-        # self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=[50, 100, 150, 200, 300, 350], gamma=0.5, last_epoch = start_epoch-1)
 
         dist.barrier()
         for epoch in range(start_epoch + 1, start_epoch + 1 + self.nEpochs + 1):
+            self.training_loader.sampler.set_epoch(epoch)
+            self.testing_loader.sampler.set_epoch(epoch)
             dist.barrier()
             if self.local_rank == 0:
                 print("\n=== >Persuming Running Epoch {} starts".format(epoch))
+
             dist.barrier()
             self.D_train(epoch)
             dist.barrier()
             self.G_train(epoch)
-            # self.schedulerD.step()
-            # self.schedulerG.step()
+            if self.schedulerD is not None:
+                self.schedulerD.step()
+            if self.schedulerG is not None:
+                self.schedulerG.step()
 
-            if self.local_rank == 0:
-                temp_psnr, temp_ssim = self.test_Y(epoch)
-
-                if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
-                    best_psnr = temp_psnr
-                    best_ssim = temp_ssim
-                    best_epoch = epoch
-                    self.save(best_psnr, best_ssim, epoch)
-
-                elif epoch % 50 == 0 or  epoch == self.nEpochs:
-                    self.save(best_psnr, best_ssim, epoch)
-
+            temp_psnr, temp_ssim = self.test_Y(epoch)
+            if temp_psnr >= best_psnr and temp_ssim >= best_ssim:
+                best_psnr = temp_psnr
+                best_ssim = temp_ssim
+                best_epoch = epoch
+                self.save(best_psnr, best_ssim, epoch)
+            elif epoch % 50 == 0 or  epoch == self.nEpochs:
+                self.save(best_psnr, best_ssim, epoch)
             
         return best_psnr, best_ssim, best_epoch
 

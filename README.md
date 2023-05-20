@@ -1,14 +1,14 @@
 # MSRN-RCAN-SRGAN
 
 ## Overview
-This repository contains an simple PyTorch implementation of 4x [SRGAN](https://arxiv.org/abs/1609.04802) combined with
+This repository contains a simple PyTorch implementation of 4x [SRGAN](https://arxiv.org/abs/1609.04802) combined with
     [EDSR](https://arxiv.org/abs/1707.02921),
     [RCAN](https://arxiv.org/abs/1807.02758), 
     [MSRN](https://arxiv.org/abs/1904.10698).
 
 Now CPU/OneGPU version has been implemented, you can use it freely with bash, the codes are in folder: MyNet 
   
-As for DDP version, the codes is also available in folder: MyNet_ddp but may not be easy to use, and it will coming soon 
+As for DDP version, the codes is also available in folder: MyNet_ddp but may not be easy to use, and it is coming soon 
 
 
 ## Model
@@ -54,7 +54,7 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 3. D_train require d_real_loss and d_fake_loss more than 0.4 to aviod D too strong, you can change the value in train.py's D_threshold !!!
 4. Hyper parameter K in GAN is not supported(default==1) because it is useless in practice, you have to recode net.solver.run/run_resume if you want
 5. pretrain G with 1e-4 lr for 2000 times, and then 1e-5 lr for 8000 times
-6. run G and D G with 1e-5 lr for 10000 times
+6. run G and D with 1e-5 lr for 10000 times
 7. the more iteration you train in pretrain and run, the better G is, if you want know more, read about [SRGAN](https://arxiv.org/abs/1609.04802) or [ESRGAN](https://arxiv.org/abs/1809.00219)
 
 
