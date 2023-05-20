@@ -29,14 +29,15 @@ class MyNetTrainer(object):
         self.test_crop_size = config.test_crop_size
         self.test_dataset = config.test_dataset
         self.testBatchSize = config.testBatchSize
+        self.test_image = config.test_image
 
         self.upscale_factor = config.upscale_factor
         self.nEpochs = config.nEpochs
         self.G_pretrain_epoch= config.G_pretrain_epoch
         self.num_residuals = config.num_residuals
-        self.K = config.K
         self.G_lr = config.G_lr
         self.D_lr = config.D_lr
+        self.D_threshold = config.D_threshold
 
         self.netG = None
         self.netD = None
@@ -215,14 +216,14 @@ class MyNetTrainer(object):
             d_real_loss = self.criterionD(d_real, real_label) # BCE loss of real samples
             temp = d_real_loss.clone()
             dist.all_reduce(temp, op=dist.ReduceOp.SUM)
-            if (temp / self.world_size) > 0.4:
+            if (temp / self.world_size) > self.D_threshold:
                 d_real_loss.backward()
 
             d_fake = self.netD(self.netG(data)) # prob of fake samples
             d_fake_loss = self.criterionD(d_fake, fake_label) # BCE loss of fake samples
             temp = d_fake_loss.clone()
             dist.all_reduce(temp, op=dist.ReduceOp.SUM)
-            if (temp / self.world_size) > 0.4:
+            if (temp / self.world_size) > self.D_threshold:
                 d_fake_loss.backward()
 
             self.optimizerD.step()
@@ -257,7 +258,7 @@ class MyNetTrainer(object):
                 avg_psnr += 10 * log10(1 / mse.item())
                 avg_ssim += ssim(prediction.squeeze(dim=0).cpu().numpy(), target.squeeze(dim=0).cpu().numpy(), channel_axis=0) 
         
-        img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
+        img = Image.open(self.test_image)
         img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
         data = (ToTensor()(img)) 
         data = data.to('cuda:0').unsqueeze(0) # torch.Size([1, 3, 256, 256])
@@ -296,7 +297,7 @@ class MyNetTrainer(object):
                 avg_ssim += temp_ssim / self.world_size
 
         if self.local_rank == 0:
-            img = Image.open('/home/guozy/BISHE/dataset/Set14/comic.png')
+            img = Image.open(self.test_image)
             img = img.resize((img.width//4, img.height//4), resample=Image.Resampling.BICUBIC)
             data = (ToTensor()(img)) 
             data = data.to(self.local_rank).unsqueeze(0) # torch.Size([1, 3, 256, 256])
@@ -424,8 +425,8 @@ class MyNetTrainer(object):
                 print("\n===> Running Epoch {} starts".format(epoch))
             dist.barrier()
             
-            if (epoch-1) % self.K == 0:
-                self.D_train(epoch)
+
+            self.D_train(epoch)
             dist.barrier()
             self.G_train(epoch)
             if self.schedulerD is not None:
@@ -464,7 +465,7 @@ class MyNetTrainer(object):
             self.testing_loader.sampler.set_epoch(epoch)
             dist.barrier()
             if self.local_rank == 0:
-                print("\n=== >Persuming Running Epoch {} starts".format(epoch))
+                print("\n===> Persuming Running Epoch {} starts".format(epoch))
 
             dist.barrier()
             self.D_train(epoch)

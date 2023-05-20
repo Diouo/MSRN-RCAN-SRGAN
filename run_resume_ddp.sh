@@ -7,7 +7,6 @@ nohup python -m torch.distributed.launch --nproc_per_node 2 \
 train_ddp.py \
 --mode run_resume \
 --test_dataset 'BSD100' \
---K 1 \
 --nEpochs 10000 \
 --G_lr 1e-5 \
 --D_lr 1e-5 \

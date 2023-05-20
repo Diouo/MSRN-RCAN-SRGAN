@@ -27,16 +27,17 @@ parser.add_argument('--train_dataset', type=str, default='DIV2K', help='desicion
 parser.add_argument('--test_dataset', type=str, default='DIV2K', help='desicion of dataset')
 parser.add_argument('--train_crop_size', type=int, default=128, help='crop size of the sample')
 parser.add_argument('--test_crop_size', type=int, default=256, help='crop size of the sample')
+parser.add_argument('--test_image', type=int, default='/home/guozy/BISHE/dataset/Set14/comic.png', help='for show resolve')
 
 # hyper-parameters
 parser.add_argument('--num_residuals', type=int, default=23)
-parser.add_argument('--K', type=int, default=5, help='alternatively training G and D')
 parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
 parser.add_argument('--testBatchSize', type=int, default=1, help='testing batch size')
 parser.add_argument('--nEpochs', type=int, default=400, help='number of epochs to train for')
 parser.add_argument('--G_pretrain_epoch', type=int, default=400)
 parser.add_argument('--G_lr', type=float, default=1e-4, help='Learning Rate')
 parser.add_argument('--D_lr', type=float, default=1e-4, help='Learning Rate')
+parser.add_argument('--D_threshold', type=float, default=0.4, help='use for limit the training of D')
 parser.add_argument('--seed', type=int, default=42, help='random seed to use')
 parser.add_argument('--upscale_factor', '-uf',  type=int, default=4, help="only 2 * k")
 
