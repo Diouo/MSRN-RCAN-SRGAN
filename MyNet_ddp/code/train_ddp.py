@@ -27,7 +27,7 @@ parser.add_argument('--train_dataset', type=str, default='/home/guozy/BISHE/data
 parser.add_argument('--test_dataset', type=str, default='/home/guozy/BISHE/dataset/DIV2K/images/test', help='all png/jpg will be loaded automatically')
 parser.add_argument('--train_crop_size', type=int, default=128, help='crop size of the sample')
 parser.add_argument('--test_crop_size', type=int, default=256, help='crop size of the sample')
-parser.add_argument('--test_image', type=int, default='/home/guozy/BISHE/dataset/Set14/comic.png', help='for show resolve')
+parser.add_argument('--test_image', type=str, default='/home/guozy/BISHE/dataset/Set14/comic.png', help='for show resolve')
 
 # hyper-parameters
 parser.add_argument('--num_residuals', type=int, default=23)
@@ -52,16 +52,15 @@ def main():
         now = datetime.datetime.now()
         now = now.strftime("%Y-%m-%d_%H:%M:%S")
         model_out_path = '/home/guozy/BISHE/MyNet_ddp/result/' + now
-        if os.path.exists(model_out_path) == False:
-                os.mkdir(model_out_path)
-
-        checkpoints_out_path = model_out_path +'/checkpoints/'
-        if os.path.exists(checkpoints_out_path) == False:
-            os.mkdir(checkpoints_out_path)
-
     else:
         model_out_path = args.model_out_path
-        checkpoints_out_path = model_out_path +'/checkpoints/'
+
+    if os.path.exists(model_out_path) == False:
+        os.mkdir(model_out_path)
+    checkpoints_out_path = model_out_path +'/checkpoints/'
+    if os.path.exists(checkpoints_out_path) == False:
+        os.mkdir(checkpoints_out_path)
+
 
     # ===========================================================
     # To store settings information of model
