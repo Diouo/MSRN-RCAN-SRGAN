@@ -69,7 +69,7 @@ Pretrained weight for CNN and GAN also offer [Google Drive](https://drive.google
 | SRGAN | 29.40/0.8472 | 26.02/0.7397 |	25.16/0.6688 |
 | ESRGAN | 30.39/0.8641 | 26.20/0.7211 | 25.35/0.6732 |
 | MSCARN(Ours) | 32.00/0.9019 |	28.36/0.8003 | 27.59/0.7550 |
-| MSCAR-GAN(Ours) |31.13/0.8803 | 27.74/0.7691 | 27.04/0.7199 |
+| MSCAR-GAN(Ours) |31.00/0.8762 | 27.64/0.7636 | 26.78/0.7106 |
 
 
 ## Result
